@@ -160,3 +160,9 @@ class LoQ(object):
             self.q_predict_kpcas.append(X_kpca)
         return self.kpcas
 
+    def classify_observations(self, num_components=1):
+        QoI_list = range(num_components)
+        q_predict_maps = []
+        # for i in range
+
+
