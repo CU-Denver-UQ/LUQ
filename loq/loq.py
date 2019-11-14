@@ -14,11 +14,7 @@ class LoQ(object):
 
         self.predicted_time_series = predicted_time_series
         self.observed_time_series = observed_time_series
-        #self.predict_times = predict_times
-        #self.obs_times = obs_times
         self.times = times
-        # self.q_predict_pl = None
-        # self.q_obs_pl = None
         self.clean_times = None   # surrogate_times -> clean_times
         self.clean_predictions = None # surrogate -> clean
         self.clean_obs = None
@@ -28,15 +24,13 @@ class LoQ(object):
         self.kpcas = None
         self.q_predict_kpcas = None
 
-    # time_start -> time_start_idx and time_end -> time_end_idx
-    # num_time_obs -> num_clean_obs
-    # rel_tol ---> Interpretation is to control the average error between splines normalized/relative to
+    # tol ---> Interpretation is to control the average error between splines normalized/relative to
     # the average magnitude of the data for which the splines are approximating a signal. 
     # default rel_tol = 1E-3? Or, set avg_tol to 0.01 and use l1-average errors which are interpreted
     # as a discretization of the average errors in the approximated signals
-    def clean_data(self, time_start_idx, time_end_idx, num_clean_obs, rel_tol, min_knots, max_knots):
+    def clean_data(self, time_start_idx, time_end_idx, num_clean_obs, tol, min_knots, max_knots):
         i = min_knots
-        # Use _old and _new to compare to rel_tol and determine when to stop adding knots
+        # Use _old and _new to compare to tol and determine when to stop adding knots
         # Compute _old before looping and then i=i+1
         # Eventual to-do: move inner-loop of clean_data_spline out here so that each individual sample
         # of time series is cleaned by its own separate spline with variable number of knots compared to
@@ -45,7 +39,8 @@ class LoQ(object):
             clean_predictions, clean_obs, clean_times, errors_predict, errors_obs = \
                 self.clean_data_spline(i, time_start_idx, time_end_idx, num_clean_obs)
             # After an _old and a _new is computed (when i>min_knots)
-            if np.average(l2_errors_obs) <= rel_tol and np.average(l2_errors_predict) <= rel_tol:
+            print(np.average(errors_obs), np.average(errors_predict))
+            if np.average(errors_obs) <= tol and np.average(errors_predict) <= tol:
                 break
             else:
                 i +=1
@@ -59,8 +54,6 @@ class LoQ(object):
         self.clean_obs = clean_obs
         self.clean_times = clean_times
 
-    # time_start -> time_start_idx and time_end -> time_end_idx
-    # num_time_obs -> num_clean_obs
     def clean_data_spline(self, num_knots, time_start_idx, time_end_idx, num_clean_obs):
         def wrapper_fit_func(x, N, *args):
             Qs = list(args[0][0:N])
@@ -74,20 +67,17 @@ class LoQ(object):
 
         num_samples = self.predicted_time_series.shape[0]
         num_obs = self.observed_time_series.shape[0]
-        # time_start -> self.times[time_start_idx], time_end -> self.times[time_end_idx]
         knots_init = np.linspace(self.times[time_start_idx], self.times[time_end_idx], num_knots)[1:-1]
 
         # find piecewise linear splines for predictions
         q_predict_pl = np.zeros((num_samples, 2 * num_knots - 2))
 
         for i in range(num_samples):
-            #self.predicted_time_series[i, :] -> self.predicted_time_series[i, time_start_idx:time_end_idx]
             q_predict_pl[i, :], _ = optimize.curve_fit(lambda x, *params_0: wrapper_fit_func(x, num_knots, params_0),
-                                                       self.times,
+                                                       self.times[time_start_idx:time_end_idx+1],
                                                        self.predicted_time_series[i, time_start_idx:time_end_idx+1],
                                                        p0=np.hstack([np.zeros(num_knots), knots_init]))
         
-        # surrogate_times -> clean_times
         clean_times = np.linspace(self.times[time_start_idx], self.times[time_end_idx], num_clean_obs)
 
         # calculate avg l1 error between spline and original data
@@ -100,7 +90,7 @@ class LoQ(object):
                                               self.predicted_time_series[i, time_start_idx:time_end_idx+1],
                                               ord=1)/float(time_end_idx - time_start_idx + 1))
             errors_predict[i] = errors_predict[i]/ \
-                                np.average(self.predicted_time_series[i, time_start_idx:time_end_idx+1])
+                np.average(np.abs(self.predicted_time_series[i, time_start_idx:time_end_idx+1]))
 
         # evaluate spline at new times to get clean_predictions (not surrogate_predictions)
         clean_predictions = np.zeros((num_samples, num_clean_obs))
@@ -113,24 +103,22 @@ class LoQ(object):
         q_obs_pl = np.zeros((num_obs, 2 * num_knots - 2))
 
         for i in range(num_samples):
-            #self.observed_time_series[i, :] -> self.observed_time_series[i, time_start_idx:time_end_idx]
             q_obs_pl[i, :], _ = optimize.curve_fit(lambda x, *params_0: wrapper_fit_func(x, num_knots, params_0),
-                                                   self.times,
+                                                   self.times[time_start_idx:time_end_idx+1],
                                                    self.observed_time_series[i, time_start_idx:time_end_idx + 1],
                                                    p0=np.hstack([np.zeros(num_knots), knots_init]))
 
         # calculate l1 error between spline and original data
-        # SM totally rewrite
         errors_obs = np.zeros((num_obs, num_clean_obs))
         for i in range(num_obs):
             clean_obs_at_original = piecewise_linear(self.times[time_start_idx:time_end_idx + 1],
-                                               q_obs_pl[i, num_knots:2 * num_knots],
-                                               q_obs_pl[i, 0:num_knots])
+                                                     q_obs_pl[i, num_knots:2 * num_knots],
+                                                     q_obs_pl[i, 0:num_knots])
             errors_obs[i] = (nlinalg.norm(clean_obs_at_original -
                                           self.observed_time_series[i, time_start_idx:time_end_idx+1],
                                           ord=1)/float(time_end_idx - time_start_idx + 1))
             errors_obs[i] = errors_obs[i] / \
-                                np.average(self.observed_time_series[i, time_start_idx:time_end_idx+1])
+                np.average(np.abs(self.observed_time_series[i, time_start_idx:time_end_idx+1]))
 
         # evaluate spline at new times to get clean_obs instead of surrogate_obs
         clean_obs = np.zeros((num_obs, num_clean_obs))
@@ -165,20 +153,20 @@ class LoQ(object):
         from sklearn.cluster import KMeans
 
         k_means = KMeans(init='k-means++', **kwargs)
-        k_means.fit(self.surrogate_predictions)
+        k_means.fit(self.clean_predictions)
         return k_means.labels_, k_means.inertia_
 
     def learn_dynamics_spectral(self, kwargs):
         from sklearn.cluster import SpectralClustering
-        clustering = SpectralClustering(**kwargs).fit(self.surrogate_predictions)
+        clustering = SpectralClustering(**kwargs).fit(self.clean_predictions)
         return clustering.labels_
 
     def classify_dynamics(self, kernel, kwargs={}):
         from sklearn import svm
 
         clf = svm.SVC(kernel=kernel, gamma='auto', **kwargs)
-        clf.fit(self.surrogate_predictions, self.cluster_label)
-        self.predict_labels = clf.predict(self.surrogate_predictions)
+        clf.fit(self.clean_predictions, self.cluster_label)
+        self.predict_labels = clf.predict(self.clean_predictions)
         return self.predict_labels
 
     # def qoi that loops over learn_qoi and classify to get both the predict and the observed QoI
@@ -194,7 +182,7 @@ class LoQ(object):
         num_clusters = np.max(self.predict_labels) + 1
         for i in range(num_clusters):
             scaler = StandardScaler()
-            X_std = scaler.fit_transform(self.surrogate_predictions[np.where(self.predict_labels==i)[0], :])
+            X_std = scaler.fit_transform(self.clean_predictions[np.where(self.predict_labels==i)[0], :])
             kpca = KernelPCA(kernel=kernel, fit_inverse_transform=False)
             X_kpca = kpca.fit_transform(X_std)
             self.kpcas.append(kpca)
