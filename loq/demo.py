@@ -286,10 +286,22 @@ for i in range(0,num_obs_samples,10):
 
 
 from loq import *
-learn = LoQ(Q_samples_TS, Q_obs_samples_TS, times, times)
-learn.clean_data(time_start=0.5, time_end=3.5, num_time_obs=50, rel_tol=0.1, max_knots=10)
+#learn = LoQ(Q_samples_TS, Q_obs_samples_TS, times, times)
+#learn.clean_data(time_start=0.5, time_end=3.5, num_time_obs=50, rel_tol=0.1, max_knots=10)
+time_start_idx = 20
+time_end_idx = 49
+learn = LoQ(Q_samples_TS, Q_obs_samples_TS, times)
+learn.clean_data(time_start_idx=time_start_idx, time_end_idx=time_end_idx, num_clean_obs=50, tol=1.0e-2, min_knots=5, max_knots=20)
+kwargs = [#{'n_clusters': 3,
+          # 'n_init': 10},
+          {'n_clusters': 3,
+           'assign_labels': 'discretize',
+           'random_state': 0}]
 
+learn.learn_dynamics(cluster_methods=['spectral'], kwargs=kwargs)
 
+ls, rate = learn.classify_dynamics(kernel="rbf")
+print(rate)
 # In[ ]:
 
 
