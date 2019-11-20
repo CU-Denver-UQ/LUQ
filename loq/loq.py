@@ -19,10 +19,17 @@ class LoQ(object):
         self.clean_predictions = None # surrogate -> clean
         self.clean_obs = None
         self.cluster_labels = None
-        self.cluster_label = None
         self.predict_labels = None
         self.kpcas = None
         self.q_predict_kpcas = None
+
+        self.info = {'clustering_method': None,
+                     'num_clusters': None,
+                     'classifier_type': None,
+                     'classifier_kernel': None,
+                     'misclassification_rate': None,
+                     'kpca_kernel': None,
+                     'num_principal_components': None}
 
     # tol ---> Interpretation is to control the average error between splines normalized/relative to
     # the average magnitude of the data for which the splines are approximating a signal. 
@@ -125,18 +132,13 @@ class LoQ(object):
     # For now, set num_clusters = 3 but keyword it so that user can change this without changing 
     # anything else. 
     
-    def learn_dynamics(self, cluster_methods, kwargs):
-        self.cluster_labels = []
-        inertias = []
-        for i, meth in enumerate(cluster_methods):
-            if meth == 'kmeans':
-                labels, inertia = self.learn_dynamics_kmeans(kwargs[i])
-                self.cluster_labels.append(labels)
-                inertias.append(inertia)
-            elif meth == 'spectral':
-                self.cluster_labels.append(self.learn_dynamics_spectral(kwargs[i]))
-        self.cluster_label = self.cluster_labels[0]
-        return self.cluster_labels, inertias
+    def learn_dynamics(self, cluster_method='kmeans', kwargs={'n_clusters': 3, 'n_init': 10}):
+        if cluster_method == 'kmeans':
+            self.cluster_labels, inertia = self.learn_dynamics_kmeans(kwargs)
+        elif cluster_method == 'spectral':
+            self.cluster_labels = self.learn_dynamics_spectral(kwargs)
+            inertia = None
+        return self.cluster_labels, inertia
 
     def learn_dynamics_kmeans(self, kwargs):
         from sklearn.cluster import KMeans
@@ -150,15 +152,72 @@ class LoQ(object):
         clustering = SpectralClustering(**kwargs).fit(self.clean_predictions)
         return clustering.labels_
 
-    def classify_dynamics(self, kernel, kwargs={}):
-        from sklearn import svm
+    def classify_dynamics(self, proposals=[{'kernel': 'linear'},
+                                           {'kernel': 'rbf'}, {'kernel': 'poly'}, {'kernel': 'sigmoid'}], k=10):
+        clfs = []
+        misclass_rates = []
 
-        clf = svm.SVC(kernel=kernel, gamma='auto', **kwargs)
-        clf.fit(self.clean_predictions, self.cluster_label)
-        self.predict_labels = clf.predict(self.clean_predictions)
-        missclass_rate = float(np.sum(np.not_equal(self.predict_labels, self.cluster_label))) / \
-                         float(len(self.predict_labels))
-        return self.predict_labels, missclass_rate
+        mis_min = 1.0
+        ind_min = None
+
+        for i, prop in enumerate(proposals):
+            clf, mis = self.classify_dynamics_svm_kfold(k=k, kwargs=prop)
+            clfs.append(clf)
+            misclass_rates.append(mis)
+            if mis <= mis_min:
+                mis_min = mis
+                ind_min = i
+        print('Best classifier is ', proposals[ind_min])
+        print('Misclassification rate is ', mis_min)
+        self.classifier = clfs[i]
+        self.predict_labels = self.classifier.predict(self.clean_predictions)
+        return self.classifier, self.predict_labels
+
+    def classify_dynamics_svm_kfold(self, k=10,  kwargs={}):
+        import numpy.random as nrand
+        num_clean = self.clean_predictions.shape[0]
+        inds = nrand.choice(num_clean, num_clean, replace=False)
+        binsize = int(num_clean/k)
+        randomized_preds = self.clean_predictions[inds, :]
+        randomized_labels = self.cluster_labels[inds]
+        misclass_rates = []
+        for i in range(k):
+            testing_set = randomized_preds[i*binsize:(i+1)*binsize, :]
+            testing_labels = randomized_labels[i*binsize:(i+1)*binsize]
+            training_set = np.vstack((randomized_preds[0:i*binsize, :], randomized_preds[(i+1)*binsize:, :]))
+            training_labels = np.hstack((randomized_labels[0:i*binsize], randomized_labels[(i+1)*binsize:]))
+
+            clf = self.classify_dynamics_svm(kwargs=kwargs, data=training_set, labels=training_labels)
+            new_labels = clf.predict(testing_set)
+            misclass_rates.append(np.average(np.not_equal(new_labels, testing_labels)))
+            #import pdb
+            #pdb.set_trace()
+        print(np.average(misclass_rates), 'misclassification rate for ', kwargs)
+        clf = self.classify_dynamics_svm(kwargs=kwargs, data=self.clean_predictions, labels=self.cluster_labels)
+        return clf, np.average(misclass_rates)
+
+    def classify_dynamics_svm(self, kwargs={}, data=None, labels=None):
+        from sklearn import svm
+        if data is None:
+            data = self.clean_predictions
+            labels = self.cluster_labels
+
+        clf = svm.SVC(gamma='auto', **kwargs)
+        clf.fit(data, labels)
+        return clf
+
+
+    #
+    # def classify_dynamics_kmeans(self, kwargs=kwargs, data=self.clean_predictions, labels=self.cluster_labels):
+    #     # Warning: same number of clusters should be used as learning dynamics
+    #     from sklearn.cluster import KMeans
+    #     if data is None:
+    #         data = self.clean_predictions
+    #         labels = self.cluster_labels
+    #     k_means = KMeans(init='k-means++', **kwargs)
+    #     k_means.fit(data)
+
+
 
     # def qoi that loops over learn_qoi and classify to get both the predict and the observed QoI
     # needs comparison criteria/metrics - use proportion of variance explained by user-specified number 
