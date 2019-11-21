@@ -291,26 +291,35 @@ from loq import *
 time_start_idx = 20
 time_end_idx = 49
 learn = LoQ(Q_samples_TS, Q_obs_samples_TS, times)
-learn.clean_data(time_start_idx=time_start_idx, time_end_idx=time_end_idx, num_clean_obs=50, tol=1.0e-2, min_knots=5, max_knots=20)
-kwargs = [{'n_clusters': 2,
-           'n_init': 10},
-          {'n_clusters': 3,
-           'n_init': 10},
-          {'n_clusters': 4,
-           'n_init': 10},
-          {'n_clusters': 5,
-           'n_init': 10}
-          ]
-kwargs= {'n_clusters': 3,
-           'n_init': 10}
-           # 'assign_labels': 'discretize',
-           # 'random_state': 0}]
+learn.clean_data(time_start_idx=time_start_idx, time_end_idx=time_end_idx,
+                 num_clean_obs=50, tol=1.0e-2, min_knots=5, max_knots=20)
+learn.dynamics()
+learn.learn_qois_and_transform()
 
-clust, inert = learn.learn_dynamics(cluster_method='kmeans', kwargs=kwargs)
-# clf, misclass = learn.classify_dynamics_svm_kfold(k=10,  kwargs={'kernel': 'rbf'})
-clf, lab = learn.classify_dynamics()
+# kwargs = [{'n_clusters': 2,
+#            'n_init': 10},
+#           {'n_clusters': 3,
+#            'n_init': 10},
+#           {'n_clusters': 4,
+#            'n_init': 10},
+#           {'n_clusters': 5,
+#            'n_init': 10}
+#           ]
+# kwargs= {'n_clusters': 3,
+#            'n_init': 10}
+#            # 'assign_labels': 'discretize',
+#            # 'random_state': 0}]
+#
+# clust, inert = learn.learn_dynamics(cluster_method='kmeans', kwargs=kwargs)
+# # clf, misclass = learn.classify_dynamics_svm_kfold(k=10,  kwargs={'kernel': 'rbf'})
+# clf, lab = learn.classify_dynamics()
+#
+# #learn.learn_qoi(kernel='linear')
+# learn.learn_qoi(variance_rate=0.95)
+# learn.choose_qois()
+# learn.classify_observations()
+# learn.transform_observations()
 
-learn.learn_qoi(kernel='linear')
 import pdb
 pdb.set_trace()
 

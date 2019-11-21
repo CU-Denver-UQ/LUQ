@@ -5,12 +5,27 @@ from scipy.stats import norm, beta
 from scipy import optimize
 from sklearn.preprocessing import StandardScaler
 
+
 class LoQ(object):
+    """
+    Learning Uncertain Quantities:
+    Takes in observed and predicted time series data, cleans the data, identifies dynamics and
+    low-dimensional structures, and transforms the data.
+    """
 
     def __init__(self,
                  predicted_time_series,
                  observed_time_series,
                  times):
+        """
+        Initializes objects. All time series arrays should be the same length.
+        :param predicted_time_series: time series from predictions
+        :type predicted_time_series: :class:`numpy.ndarray`
+        :param observed_time_series: time series from observations
+        :type observed_time_series: :class:`numpy.ndarray`
+        :param times: points in time for time series
+        :type times: :class:`numpy.ndarray`
+        """
 
         self.predicted_time_series = predicted_time_series
         self.observed_time_series = observed_time_series
@@ -18,11 +33,19 @@ class LoQ(object):
         self.clean_times = None   # surrogate_times -> clean_times
         self.clean_predictions = None # surrogate -> clean
         self.clean_obs = None
+        self.num_clusters = None
         self.cluster_labels = None
         self.predict_labels = None
+        self.obs_labels = None
         self.kpcas = None
         self.q_predict_kpcas = None
+        self.predict_maps = []
+        self.obs_maps = []
+        self.num_pcs = []
+        self.variance_rate = []
+        self.Xpcas = []
 
+        # incorporate more into this
         self.info = {'clustering_method': None,
                      'num_clusters': None,
                      'classifier_type': None,
@@ -31,11 +54,18 @@ class LoQ(object):
                      'kpca_kernel': None,
                      'num_principal_components': None}
 
-    # tol ---> Interpretation is to control the average error between splines normalized/relative to
-    # the average magnitude of the data for which the splines are approximating a signal. 
-    # default rel_tol = 1E-3? Or, set avg_tol to 0.01 and use l1-average errors which are interpreted
-    # as a discretization of the average errors in the approximated signals
+
     def clean_data(self, time_start_idx, time_end_idx, num_clean_obs, tol, min_knots=3, max_knots=100):
+        """
+        Clean observed and predicted time series data
+        :param time_start_idx: first time index to clean
+        :param time_end_idx: last time index to clean
+        :param num_clean_obs: number of clean observations to make
+        :param tol: tolerance for constructing splines
+        :param min_knots: maximum number of knots allowed
+        :param max_knots: minimum number of knots allowed
+        :return:
+        """
         i = min_knots
         # Use _old and _new to compare to tol and determine when to stop adding knots
         # Compute _old before looping and then i=i+1
@@ -91,7 +121,14 @@ class LoQ(object):
         return clean_predictions, clean_predictions, clean_times
 
     def clean_data_spline(self, times, data, num_knots, clean_times):
-
+        """
+        Clean a time series over window with linear splines
+        :param times: time window
+        :param data: time series data
+        :param num_knots: number of knots to use
+        :param clean_times: number of clean values wanted
+        :return:
+        """
         def wrapper_fit_func(x, N, *args):
             Qs = list(args[0][0:N])
             knots = list(args[0][N:])
@@ -124,23 +161,45 @@ class LoQ(object):
 
         return clean_data, error
 
-    # def dynamics that calls learn and classify and uses scores of the svm on 10-fold CV on batches
-    # of labeled (i.e., learned) data split into training/test (90/10) sets. Then, use the clustering 
-    # (with whatever kernel for spectral clustering or the kmeans) along with the svm (with whatever
-    # kernel) gives the best score and then train the svm on all the data.
-    #
-    # For now, set num_clusters = 3 but keyword it so that user can change this without changing 
-    # anything else. 
+    def dynamics(self, cluster_method='kmeans',
+                 kwargs={'n_clusters': 3, 'n_init': 10},
+                 proposals = [{'kernel': 'linear'},
+                 {'kernel': 'rbf'}, {'kernel': 'poly'}, {'kernel': 'sigmoid'}],
+                 k = 10):
+        """
+
+        :param cluster_method: type of clustering to use ('kmeans' or 'spectral')
+        :param kwargs: keyword arguments for clustering method
+        :param proposals: proposal keyword arguments for svm classifier
+        :param k: number of cases for k-fold cross-validation
+        :return:
+        """
+
+        self.learn_dynamics(cluster_method=cluster_method, kwargs=kwargs)
+        self.classify_dynamics(proposals=proposals, k=k)
+        return
     
     def learn_dynamics(self, cluster_method='kmeans', kwargs={'n_clusters': 3, 'n_init': 10}):
+        """
+        Learn dynamics
+        :param cluster_method: type of clustering to use ('kmeans' or 'spectral')
+        :param kwargs: keyword arguments for clustering method
+        :return:
+        """
         if cluster_method == 'kmeans':
             self.cluster_labels, inertia = self.learn_dynamics_kmeans(kwargs)
         elif cluster_method == 'spectral':
             self.cluster_labels = self.learn_dynamics_spectral(kwargs)
             inertia = None
+        self.num_clusters = int(np.max(self.cluster_labels) + 1)
         return self.cluster_labels, inertia
 
     def learn_dynamics_kmeans(self, kwargs):
+        """
+        Perform clustering with k-means.
+        :param kwargs: keyword arguments
+        :return:
+        """
         from sklearn.cluster import KMeans
 
         k_means = KMeans(init='k-means++', **kwargs)
@@ -148,12 +207,23 @@ class LoQ(object):
         return k_means.labels_, k_means.inertia_
 
     def learn_dynamics_spectral(self, kwargs):
+        """
+        Perform clustering with spectral clustering.
+        :param kwargs: keyword arguments
+        :return:
+        """
         from sklearn.cluster import SpectralClustering
         clustering = SpectralClustering(**kwargs).fit(self.clean_predictions)
         return clustering.labels_
 
     def classify_dynamics(self, proposals=[{'kernel': 'linear'},
                                            {'kernel': 'rbf'}, {'kernel': 'poly'}, {'kernel': 'sigmoid'}], k=10):
+        """
+        Classify dynamics using best SVM method based on k-fold cross validation.
+        :param proposals: proposal SVM keyword arguments
+        :param k: k for k-fold cross validation
+        :return:
+        """
         clfs = []
         misclass_rates = []
 
@@ -174,6 +244,12 @@ class LoQ(object):
         return self.classifier, self.predict_labels
 
     def classify_dynamics_svm_kfold(self, k=10,  kwargs={}):
+        """
+        Classify dynamics with given SVM method and do k-fold cross validation.
+        :param k: k for k-fold cross validation
+        :param kwargs: keyword arguments for SVM
+        :return:
+        """
         import numpy.random as nrand
         num_clean = self.clean_predictions.shape[0]
         inds = nrand.choice(num_clean, num_clean, replace=False)
@@ -190,13 +266,18 @@ class LoQ(object):
             clf = self.classify_dynamics_svm(kwargs=kwargs, data=training_set, labels=training_labels)
             new_labels = clf.predict(testing_set)
             misclass_rates.append(np.average(np.not_equal(new_labels, testing_labels)))
-            #import pdb
-            #pdb.set_trace()
         print(np.average(misclass_rates), 'misclassification rate for ', kwargs)
         clf = self.classify_dynamics_svm(kwargs=kwargs, data=self.clean_predictions, labels=self.cluster_labels)
         return clf, np.average(misclass_rates)
 
     def classify_dynamics_svm(self, kwargs={}, data=None, labels=None):
+        """
+        Classify dynamics with SVM.
+        :param kwargs: keyword arguments for SVM
+        :param data: data to classify
+        :param labels: labels for supervised learning
+        :return:
+        """
         from sklearn import svm
         if data is None:
             data = self.clean_predictions
@@ -205,43 +286,110 @@ class LoQ(object):
         clf = svm.SVC(gamma='auto', **kwargs)
         clf.fit(data, labels)
         return clf
-
-
-    #
-    # def classify_dynamics_kmeans(self, kwargs=kwargs, data=self.clean_predictions, labels=self.cluster_labels):
-    #     # Warning: same number of clusters should be used as learning dynamics
-    #     from sklearn.cluster import KMeans
-    #     if data is None:
-    #         data = self.clean_predictions
-    #         labels = self.cluster_labels
-    #     k_means = KMeans(init='k-means++', **kwargs)
-    #     k_means.fit(data)
-
-
-
-    # def qoi that loops over learn_qoi and classify to get both the predict and the observed QoI
-    # needs comparison criteria/metrics - use proportion of variance explained by user-specified number 
-    # of QoI
     
-    def learn_qoi(self, kernel):
+    def learn_qoi(self, variance_rate=0.95,
+                  proposals=[{'kernel': 'linear'}, {'kernel': 'rbf'},
+                             {'kernel': 'sigmoid'}, {'kernel': 'poly'}, {'kernel': 'cosine'}]):
+        """
+        Learn best quantities of interest from proposal kernel PCAs.
+        :param variance_rate: proportion of variance QoIs should capture.
+        :param proposals: proposal keyword arguments for kPCAs
+        :return:
+        """
         from sklearn.decomposition import PCA, KernelPCA
         from sklearn.preprocessing import StandardScaler
 
         self.kpcas = []
         self.q_predict_kpcas = []
-        num_clusters = np.max(self.predict_labels) + 1
-        for i in range(num_clusters):
+        self.num_pcs = []
+        self.variance_rate =[]
+        self.Xpcas = []
+        for i in range(self.num_clusters):
             scaler = StandardScaler()
             X_std = scaler.fit_transform(self.clean_predictions[np.where(self.predict_labels==i)[0], :])
-            kpca = KernelPCA(kernel=kernel, fit_inverse_transform=False)
-            X_kpca = kpca.fit_transform(X_std)
-            self.kpcas.append(kpca)
-            self.q_predict_kpcas.append(X_kpca)
+            kpcas_local = []
+            X_kpca_local = []
+            num_pcs = []
+            rate = []
+            eigenvalues = []
+            ind_best = None
+            num_pcs_best = np.inf
+            rate_best = 0.0
+            for j, kwargs in enumerate(proposals):
+                kpca = KernelPCA(**kwargs)
+                X_kpca = kpca.fit_transform(X_std)
+                X_kpca_local.append(X_kpca)
+                kpcas_local.append(kpca)
+                eigs = kpca.lambdas_
+                eigenvalues.append(eigs)
+                eigs = eigs / np.sum(eigs)
+                cum_sum = np.cumsum(eigs)
+                num_pcs.append(int(np.sum(np.less_equal(cum_sum, variance_rate)))+1)
+                rate.append(cum_sum[num_pcs[-1] - 1])
+                if num_pcs[-1] < num_pcs_best:
+                    num_pcs_best = num_pcs[-1]
+                    ind_best = j
+                    rate_best = rate[-1]
+                elif num_pcs[-1] == num_pcs_best:
+                    if rate[-1] > rate_best:
+                        ind_best = j
+                        rate_best = rate[-1]
+                print(num_pcs[-1], 'principal components explain', "{:.4%}".format(rate[-1]), 'of variance for cluster', i,
+                      'with', proposals[j])
+
+            self.kpcas.append(kpcas_local[ind_best])
+            self.q_predict_kpcas.append(X_kpca_local[ind_best])
+            self.num_pcs.append(num_pcs[ind_best])
+            self.variance_rate.append(rate[ind_best])
+            self.Xpcas.append(X_kpca_local[ind_best])
+            print('Best kPCA for cluster ', i, ' is ', proposals[ind_best])
+            print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(self.variance_rate[-1]),
+                  'of variance.')
         return self.kpcas
 
-    def classify_observations(self, num_components=1):
-        QoI_list = range(num_components)
-        q_predict_maps = []
-        # for i in range
+    def choose_qois(self):
+        """
+        Transform predicted time series to new QoIs.
+        :return:
+        """
+        self.predict_maps = []
+        for i in range(self.num_clusters):
+            self.predict_maps.append(self.Xpcas[i][:, 0:self.num_pcs[i]])
+        return self.predict_maps
 
+    def classify_observations(self):
+        """
+        Classify observations into dynamics clusters.
+        :return:
+        """
+        self.obs_labels = self.classifier.predict(self.clean_obs)
+        return self.obs_labels
 
+    def transform_observations(self):
+        """
+        Transform observed time series to new QoIs.
+        :return:
+        """
+        from sklearn.preprocessing import StandardScaler
+        self.obs_maps = []
+        for i in range(self.num_clusters):
+            scaler = StandardScaler()
+            X_std = scaler.fit_transform(self.clean_obs[np.where(self.obs_labels==i)[0], :])
+            X_kpca = self.kpcas[i].transform(X_std)
+            self.obs_maps.append(X_kpca[:, 0:self.num_pcs[i]])
+        return self.obs_maps
+
+    def learn_qois_and_transform(self, variance_rate=0.95,
+                  proposals=[{'kernel': 'linear'}, {'kernel': 'rbf'},
+                             {'kernel': 'sigmoid'}, {'kernel': 'poly'}, {'kernel': 'cosine'}]):
+        """
+        Learn Quantities of Interest and transform time series data.
+        :param variance_rate: proportion of variance QoIs should capture.
+        :param proposals: proposal keyword arguments for kPCAs
+        :return:
+        """
+        self.learn_qoi(variance_rate=variance_rate, proposals=proposals)
+        self.choose_qois()
+        self.classify_observations()
+        self.transform_observations()
+        return self.predict_maps, self.obs_maps
