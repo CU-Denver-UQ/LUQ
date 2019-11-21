@@ -6,7 +6,7 @@ from scipy import optimize
 from sklearn.preprocessing import StandardScaler
 
 
-class LoQ(object):
+class LUQ(object):
     """
     Learning Uncertain Quantities:
     Takes in observed and predicted time series data, cleans the data, identifies dynamics and
