@@ -1,9 +1,7 @@
+# Copyright 2019 Steven A. Mattis and Troy Butler
+
 import numpy as np
-import numpy.linalg as nlinalg
-import scipy.stats as sstats
-from scipy.stats import norm, beta
 from scipy import optimize
-from sklearn.preprocessing import StandardScaler
 
 
 class LUQ(object):
