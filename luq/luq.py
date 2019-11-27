@@ -1,7 +1,7 @@
 # Copyright 2019 Steven A. Mattis and Troy Butler
 
 import numpy as np
-from scipy import optimize
+from splines import *
 
 
 class LUQ(object):
@@ -52,10 +52,9 @@ class LUQ(object):
                      'kpca_kernel': None,
                      'num_principal_components': None}
 
-
     def clean_data(self, time_start_idx, time_end_idx, num_clean_obs, tol, min_knots=3, max_knots=100):
         """
-        Clean observed and predicted time series data
+        Clean observed and predicted time series data so that difference between iterations is within tolerance.
         :param time_start_idx: first time index to clean
         :param time_end_idx: last time index to clean
         :param num_clean_obs: number of clean observations to make
@@ -64,6 +63,85 @@ class LUQ(object):
         :param max_knots: minimum number of knots allowed
         :return:
         """
+
+        i = min_knots
+        # Use _old and _new to compare to tol and determine when to stop adding knots
+        # Compute _old before looping and then i=i+1
+        times = self.times[time_start_idx:time_end_idx + 1]
+        clean_times = np.linspace(self.times[time_start_idx], self.times[time_end_idx], num_clean_obs)
+        num_predictions = self.predicted_time_series.shape[0]
+        num_obs = self.observed_time_series.shape[0]
+        self.clean_predictions = np.zeros((num_predictions, num_clean_obs))
+        self.clean_obs = np.zeros((num_obs, num_clean_obs))
+
+        for idx in range(num_predictions):
+            clean_predictions_old, error_old = linear_C0_spline(times=times,
+                                                                data=self.predicted_time_series[idx,
+                                                                     time_start_idx:time_end_idx + 1],
+                                                                num_knots=min_knots,
+                                                                clean_times=clean_times)
+            i = min_knots + 1
+            while i <= max_knots:
+                clean_predictions_new, error_new = linear_C0_spline(times=times,
+                            data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
+                            num_knots=i,
+                            clean_times=clean_times)
+
+                # After an _old and a _new is computed (when i>min_knots)
+                print(idx, i, error_new)
+                diff = np.average(np.abs(clean_predictions_new - clean_predictions_old)) / \
+                    np.average(np.abs(self.predicted_time_series[idx,
+                                                                     time_start_idx:time_end_idx + 1]))
+                if diff < tol:
+                    break
+                else:
+                    i += 1
+                    clean_predictions_old = clean_predictions_new
+            if i > max_knots:
+                print("Warning: maximum number of knots reached.")
+            else:
+                print(idx, i, "knots being used with error of", error_new)
+            self.clean_predictions[idx, :] = clean_predictions_new
+
+        for idx in range(num_obs):
+            clean_obs_old, error_old = linear_C0_spline(times=times,
+                                                        data=self.observed_time_series[idx,
+                            time_start_idx:time_end_idx + 1],
+                                                        num_knots=min_knots,
+                                                        clean_times=clean_times)
+            i = min_knots + 1
+            while i <= max_knots:
+                clean_obs_new, error_new = linear_C0_spline(times=times,
+                            data=self.observed_time_series[idx, time_start_idx:time_end_idx + 1],
+                            num_knots=i,
+                            clean_times=clean_times)
+                print(idx, i, error_new)
+                diff = np.average(np.abs(clean_obs_new - clean_obs_old)) / \
+                    np.average(np.abs(self.observed_time_series[idx, time_start_idx:time_end_idx + 1]))
+                if diff < tol:
+                    clean_obs_old = clean_obs_new
+                    break
+                else:
+                    i += 1
+            if i > max_knots:
+                print("Warning: maximum number of knots reached.")
+            else:
+                print(idx, i, "knots being used with error of", error_new)
+            self.clean_obs[idx, :] = clean_obs_new
+        return self.clean_predictions, self.clean_obs, self.clean_times
+
+    def clean_data_tol(self, time_start_idx, time_end_idx, num_clean_obs, tol, min_knots=3, max_knots=100):
+        """
+        Clean observed and predicted time series data so that the mean l1 error is within a tolerance.
+        :param time_start_idx: first time index to clean
+        :param time_end_idx: last time index to clean
+        :param num_clean_obs: number of clean observations to make
+        :param tol: tolerance for constructing splines
+        :param min_knots: maximum number of knots allowed
+        :param max_knots: minimum number of knots allowed
+        :return:
+        """
+
         i = min_knots
         # Use _old and _new to compare to tol and determine when to stop adding knots
         # Compute _old before looping and then i=i+1
@@ -77,7 +155,7 @@ class LUQ(object):
         for idx in range(num_predictions):
             i = min_knots
             while i <= max_knots:
-                clean_predictions, error = self.clean_data_spline(times=times,
+                clean_predictions, error = linear_C0_spline(times=times,
                             data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
                             num_knots=i,
                             clean_times=clean_times)
@@ -92,13 +170,13 @@ class LUQ(object):
             if i > max_knots:
                 print("Warning: maximum number of knots reached.")
             else:
-                print(idx, i, "knots being used.")
+                print(idx, i, "knots being used")
             self.clean_predictions[idx, :] = clean_predictions
 
         for idx in range(num_obs):
             i = min_knots
             while i <= max_knots:
-                clean_obs, error = self.clean_data_spline(times=times,
+                clean_obs, error = linear_C0_spline(times,
                                     data=self.observed_time_series[idx, time_start_idx:time_end_idx + 1],
                                     num_knots=i,
                                     clean_times=clean_times)
@@ -116,53 +194,12 @@ class LUQ(object):
             self.clean_obs[idx, :] = clean_obs
         self.clean_times = clean_times
 
-        return clean_predictions, clean_predictions, clean_times
-
-    def clean_data_spline(self, times, data, num_knots, clean_times):
-        """
-        Clean a time series over window with linear splines
-        :param times: time window
-        :param data: time series data
-        :param num_knots: number of knots to use
-        :param clean_times: number of clean values wanted
-        :return:
-        """
-        def wrapper_fit_func(x, N, *args):
-            Qs = list(args[0][0:N])
-            knots = list(args[0][N:])
-            return piecewise_linear(x, knots, Qs)
-
-        def piecewise_linear(x, knots, Qs):
-            knots = np.insert(knots, 0, times[0])
-            knots = np.append(knots, times[-1])
-            return np.interp(x, knots, Qs)
-
-        knots_init = np.linspace(times[0], self.times[-1], num_knots)[1:-1]
-
-        # find piecewise linear splines for predictions
-        q_pl, _ = optimize.curve_fit(lambda x, *params_0: wrapper_fit_func(x, num_knots, params_0),
-                                     times,
-                                     data,
-                                     p0=np.hstack([np.zeros(num_knots), knots_init]))
-
-        # calculate clean data
-        clean_data = piecewise_linear(clean_times,
-                                      q_pl[num_knots:2 * num_knots],
-                                      q_pl[0:num_knots])
-
-        # calculate mean absolute error between spline and original data
-        clean_data_at_original = piecewise_linear(times,
-                                                  q_pl[num_knots:2 * num_knots],
-                                                  q_pl[0:num_knots])
-        error = np.average(np.abs(clean_data_at_original - data))
-        error = error / np.average(np.abs(data))
-
-        return clean_data, error
+        return self.clean_predictions, self.clean_obs, self.clean_times
 
     def dynamics(self, cluster_method='kmeans',
                  kwargs={'n_clusters': 3, 'n_init': 10},
-                 proposals = [{'kernel': 'linear'},
-                 {'kernel': 'rbf'}, {'kernel': 'poly'}, {'kernel': 'sigmoid'}],
+                 proposals = ({'kernel': 'linear'},
+                 {'kernel': 'rbf'}, {'kernel': 'poly'}, {'kernel': 'sigmoid'}),
                  k = 10):
         """
 
@@ -214,8 +251,8 @@ class LUQ(object):
         clustering = SpectralClustering(**kwargs).fit(self.clean_predictions)
         return clustering.labels_
 
-    def classify_dynamics(self, proposals=[{'kernel': 'linear'},
-                                           {'kernel': 'rbf'}, {'kernel': 'poly'}, {'kernel': 'sigmoid'}], k=10):
+    def classify_dynamics(self, proposals=({'kernel': 'linear'},
+                                           {'kernel': 'rbf'}, {'kernel': 'poly'}, {'kernel': 'sigmoid'}), k=10):
         """
         Classify dynamics using best SVM method based on k-fold cross validation.
         :param proposals: proposal SVM keyword arguments
@@ -286,12 +323,14 @@ class LUQ(object):
         return clf
     
     def learn_qoi(self, variance_rate=0.95,
-                  proposals=[{'kernel': 'linear'}, {'kernel': 'rbf'},
-                             {'kernel': 'sigmoid'}, {'kernel': 'poly'}, {'kernel': 'cosine'}]):
+                  proposals=({'kernel': 'linear'}, {'kernel': 'rbf'},
+                             {'kernel': 'sigmoid'}, {'kernel': 'poly'}, {'kernel': 'cosine'}),
+                  num_qoi=None):
         """
         Learn best quantities of interest from proposal kernel PCAs.
         :param variance_rate: proportion of variance QoIs should capture.
         :param proposals: proposal keyword arguments for kPCAs
+        :param num_qoi: number of quantities of interest to take (optional)
         :return:
         """
         from sklearn.decomposition import PCA, KernelPCA
@@ -313,6 +352,7 @@ class LUQ(object):
             ind_best = None
             num_pcs_best = np.inf
             rate_best = 0.0
+            cum_sum_best = None
             for j, kwargs in enumerate(proposals):
                 kpca = KernelPCA(**kwargs)
                 X_kpca = kpca.fit_transform(X_std)
@@ -328,6 +368,7 @@ class LUQ(object):
                     num_pcs_best = num_pcs[-1]
                     ind_best = j
                     rate_best = rate[-1]
+                    cum_sum_best = cum_sum
                 elif num_pcs[-1] == num_pcs_best:
                     if rate[-1] > rate_best:
                         ind_best = j
@@ -337,11 +378,16 @@ class LUQ(object):
 
             self.kpcas.append(kpcas_local[ind_best])
             self.q_predict_kpcas.append(X_kpca_local[ind_best])
-            self.num_pcs.append(num_pcs[ind_best])
+            if num_qoi is None:
+                self.num_pcs.append(num_pcs[ind_best])
+            else:
+                self.num_pcs.append(num_qoi)
             self.variance_rate.append(rate[ind_best])
             self.Xpcas.append(X_kpca_local[ind_best])
             print('Best kPCA for cluster ', i, ' is ', proposals[ind_best])
-            print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(self.variance_rate[-1]),
+            # print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(self.variance_rate[-1]),
+            #      'of variance.')
+            print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(cum_sum_best[self.num_pcs[-1]]),
                   'of variance.')
         return self.kpcas
 
@@ -378,15 +424,17 @@ class LUQ(object):
         return self.obs_maps
 
     def learn_qois_and_transform(self, variance_rate=0.95,
-                  proposals=[{'kernel': 'linear'}, {'kernel': 'rbf'},
-                             {'kernel': 'sigmoid'}, {'kernel': 'poly'}, {'kernel': 'cosine'}]):
+                                 proposals=({'kernel': 'linear'}, {'kernel': 'rbf'},
+                                            {'kernel': 'sigmoid'}, {'kernel': 'poly'}, {'kernel': 'cosine'}),
+                                 num_qoi=None):
         """
         Learn Quantities of Interest and transform time series data.
         :param variance_rate: proportion of variance QoIs should capture.
         :param proposals: proposal keyword arguments for kPCAs
+        :param num_qoi: number of quantities of interest to take (optional)
         :return:
         """
-        self.learn_qoi(variance_rate=variance_rate, proposals=proposals)
+        self.learn_qoi(variance_rate=variance_rate, proposals=proposals, num_qoi=num_qoi)
         self.choose_qois()
         self.classify_observations()
         self.transform_observations()
