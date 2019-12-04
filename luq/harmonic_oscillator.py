@@ -1,6 +1,6 @@
 # Copyright 2019 Steven Mattis and Troy Butler
 import numpy as np
-import dynmaical_systems as ds
+import dynamical_systems as ds
 from luq import *
 
 # A ***true*** distribution of $c, \omega_0, a$, and $b$ are defined by (non-uniform)
