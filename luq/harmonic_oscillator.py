@@ -51,7 +51,7 @@ ics_obs = np.random.beta(size=(num_obs, 2), a=true_a, b=true_b)
 params_obs[:, 0] = 0.1 + 0.4 * params_obs[:, 0]  # c
 params_obs[:, 1] = 0.5 + 1.5 * params_obs[:, 1]  # omega_0
 ics_obs[:, 0] = 1 + 1 * ics_obs[:, 0]  # a
-ics_obs[:, 0] = -1 + 1 * ics_obs[:, 1]   # b
+ics_obs[:, 1] = -1 + 1 * ics_obs[:, 1]   # b
 
 observed_time_series = phys.solve(ics=ics_obs, params=params_obs, t_eval=times)
 

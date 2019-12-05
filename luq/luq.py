@@ -42,6 +42,9 @@ class LUQ(object):
         self.num_pcs = []
         self.variance_rate = []
         self.Xpcas = []
+        self.pi_predict_kdes = []
+        self.pi_obs_kdes = []
+        self.scalers = []
 
         # incorporate more into this
         self.info = {'clustering_method': None,
@@ -119,15 +122,16 @@ class LUQ(object):
                 diff = np.average(np.abs(clean_obs_new - clean_obs_old)) / \
                     np.average(np.abs(self.observed_time_series[idx, time_start_idx:time_end_idx + 1]))
                 if diff < tol:
-                    clean_obs_old = clean_obs_new
                     break
                 else:
                     i += 1
+                    clean_obs_old = clean_obs_new
             if i > max_knots:
                 print("Warning: maximum number of knots reached.")
             else:
                 print(idx, i, "knots being used with error of", error_new)
             self.clean_obs[idx, :] = clean_obs_new
+        self.clean_times = clean_times
         return self.clean_predictions, self.clean_obs, self.clean_times
 
     def clean_data_tol(self, time_start_idx, time_end_idx, num_clean_obs, tol, min_knots=3, max_knots=100):
@@ -212,6 +216,7 @@ class LUQ(object):
 
         self.learn_dynamics(cluster_method=cluster_method, kwargs=kwargs)
         self.classify_dynamics(proposals=proposals, k=k)
+        self.classify_observations()
         return
     
     def learn_dynamics(self, cluster_method='kmeans', kwargs={'n_clusters': 3, 'n_init': 10}):
@@ -341,9 +346,11 @@ class LUQ(object):
         self.num_pcs = []
         self.variance_rate =[]
         self.Xpcas = []
+        self.scalers= []
         for i in range(self.num_clusters):
             scaler = StandardScaler()
             X_std = scaler.fit_transform(self.clean_predictions[np.where(self.predict_labels==i)[0], :])
+            self.scalers.append(scaler)
             kpcas_local = []
             X_kpca_local = []
             num_pcs = []
@@ -414,11 +421,11 @@ class LUQ(object):
         Transform observed time series to new QoIs.
         :return:
         """
-        from sklearn.preprocessing import StandardScaler
+        #from sklearn.preprocessing import StandardScaler
         self.obs_maps = []
         for i in range(self.num_clusters):
-            scaler = StandardScaler()
-            X_std = scaler.fit_transform(self.clean_obs[np.where(self.obs_labels==i)[0], :])
+            #scaler = StandardScaler()
+            X_std = self.scalers[i].transform(self.clean_obs[np.where(self.obs_labels == i)[0], :])
             X_kpca = self.kpcas[i].transform(X_std)
             self.obs_maps.append(X_kpca[:, 0:self.num_pcs[i]])
         return self.obs_maps
@@ -436,6 +443,48 @@ class LUQ(object):
         """
         self.learn_qoi(variance_rate=variance_rate, proposals=proposals, num_qoi=num_qoi)
         self.choose_qois()
-        self.classify_observations()
         self.transform_observations()
         return self.predict_maps, self.obs_maps
+
+    def generate_kdes(self):
+        from scipy.stats import gaussian_kde as GKDE
+
+        self.pi_predict_kdes = []
+        self.pi_obs_kdes = []
+
+        for i in range(self.num_clusters):
+            self.pi_predict_kdes.append(GKDE(self.predict_maps[i].T))
+            self.pi_obs_kdes.append(GKDE(self.obs_maps[i].T))
+        return self.pi_predict_kdes, self.pi_obs_kdes
+
+    def compute_r(self):
+
+        def rejection_sampling(r):
+            # Perform accept/reject sampling on a set of proposal samples using
+            # the weights r associated with the set of samples and return
+            # the indices idx of the proposal sample set that are accepted.
+            N = r.size  # size of proposal sample set
+            check = np.random.uniform(low=0, high=1, size=N)  # create random uniform weights to check r against
+            M = np.max(r)
+            new_r = r / M  # normalize weights
+            idx = np.where(new_r >= check)[0]  # rejection criterion
+            return idx
+
+        r = []
+        rs = []
+        samples_to_keep = []
+
+        for i in range(self.num_clusters):
+            # First compute the rejection ratio
+            r.append(np.divide(self.pi_obs_kdes[i](self.predict_maps[i].T),
+                               self.pi_predict_kdes[i](self.predict_maps[i].T)))
+
+            # Now perform rejection sampling and return the indices we keep
+            samples_to_keep.append(rejection_sampling(r[i]))
+
+            rs.append((r[i].mean()))
+        print('r values:', rs)
+
+        return rs
+
+
