@@ -387,7 +387,7 @@ class LUQ(object):
             print('Best kPCA for cluster ', i, ' is ', proposals[ind_best])
             # print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(self.variance_rate[-1]),
             #      'of variance.')
-            print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(cum_sum_best[self.num_pcs[-1]]),
+            print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(cum_sum_best[self.num_pcs[-1]-1]),
                   'of variance.')
         return self.kpcas
 
