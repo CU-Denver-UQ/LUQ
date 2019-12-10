@@ -45,6 +45,7 @@ class LUQ(object):
         self.pi_predict_kdes = []
         self.pi_obs_kdes = []
         self.scalers = []
+        self.r = None
 
         # incorporate more into this
         self.info = {'clustering_method': None,
@@ -484,7 +485,6 @@ class LUQ(object):
 
             rs.append((r[i].mean()))
         print('r values:', rs)
-
-        return rs
-
+        self.r = r
+        return self.r
 
