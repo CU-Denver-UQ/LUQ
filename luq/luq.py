@@ -232,6 +232,9 @@ class LUQ(object):
         elif cluster_method == 'spectral':
             self.cluster_labels = self.learn_dynamics_spectral(kwargs)
             inertia = None
+        elif cluster_method == 'dbscan':
+            self.cluster_labels = self.learn_dynamics_dbscan(kwargs)
+            inertia = None
         self.num_clusters = int(np.max(self.cluster_labels) + 1)
         return self.cluster_labels, inertia
 
@@ -255,6 +258,16 @@ class LUQ(object):
         """
         from sklearn.cluster import SpectralClustering
         clustering = SpectralClustering(**kwargs).fit(self.clean_predictions)
+        return clustering.labels_
+
+    def learn_dynamics_dbscan(self, kwargs):
+        """
+        Perform clustering with DBSCAN clustering.
+        :param kwargs: keyword arguments
+        :return:
+        """
+        from sklearn.cluster import DBSCAN
+        clustering = DBSCAN(**kwargs).fit(self.clean_predictions)
         return clustering.labels_
 
     def classify_dynamics(self, proposals=({'kernel': 'linear'},
@@ -328,7 +341,7 @@ class LUQ(object):
         clf.fit(data, labels)
         return clf
     
-    def learn_qoi(self, variance_rate=0.95,
+    def learn_qoi(self, variance_rate=None,
                   proposals=({'kernel': 'linear'}, {'kernel': 'rbf'},
                              {'kernel': 'sigmoid'}, {'kernel': 'poly'}, {'kernel': 'cosine'}),
                   num_qoi=None):
@@ -342,61 +355,104 @@ class LUQ(object):
         from sklearn.decomposition import PCA, KernelPCA
         from sklearn.preprocessing import StandardScaler
 
+        if variance_rate is None and num_qoi is None:
+            variance_rate = 0.99
+
         self.kpcas = []
         self.q_predict_kpcas = []
         self.num_pcs = []
         self.variance_rate =[]
         self.Xpcas = []
         self.scalers= []
-        for i in range(self.num_clusters):
-            scaler = StandardScaler()
-            X_std = scaler.fit_transform(self.clean_predictions[np.where(self.predict_labels==i)[0], :])
-            self.scalers.append(scaler)
-            kpcas_local = []
-            X_kpca_local = []
-            num_pcs = []
-            rate = []
-            eigenvalues = []
-            ind_best = None
-            num_pcs_best = np.inf
-            rate_best = 0.0
-            cum_sum_best = None
-            for j, kwargs in enumerate(proposals):
-                kpca = KernelPCA(**kwargs)
-                X_kpca = kpca.fit_transform(X_std)
-                X_kpca_local.append(X_kpca)
-                kpcas_local.append(kpca)
-                eigs = kpca.lambdas_
-                eigenvalues.append(eigs)
-                eigs = eigs / np.sum(eigs)
-                cum_sum = np.cumsum(eigs)
-                num_pcs.append(int(np.sum(np.less_equal(cum_sum, variance_rate)))+1)
-                rate.append(cum_sum[num_pcs[-1] - 1])
-                if num_pcs[-1] < num_pcs_best:
-                    num_pcs_best = num_pcs[-1]
-                    ind_best = j
-                    rate_best = rate[-1]
-                    cum_sum_best = cum_sum
-                elif num_pcs[-1] == num_pcs_best:
-                    if rate[-1] > rate_best:
+
+        if variance_rate is not None:
+            for i in range(self.num_clusters):
+                scaler = StandardScaler()
+                X_std = scaler.fit_transform(self.clean_predictions[np.where(self.predict_labels==i)[0], :])
+                self.scalers.append(scaler)
+                kpcas_local = []
+                X_kpca_local = []
+                num_pcs = []
+                rate = []
+                eigenvalues = []
+                ind_best = None
+                num_pcs_best = np.inf
+                rate_best = 0.0
+                cum_sum_best = None
+                for j, kwargs in enumerate(proposals):
+                    kpca = KernelPCA(**kwargs)
+                    X_kpca = kpca.fit_transform(X_std)
+                    X_kpca_local.append(X_kpca)
+                    kpcas_local.append(kpca)
+                    eigs = kpca.lambdas_
+                    eigenvalues.append(eigs)
+                    eigs = eigs / np.sum(eigs)
+                    cum_sum = np.cumsum(eigs)
+                    num_pcs.append(int(np.sum(np.less_equal(cum_sum, variance_rate)))+1)
+                    rate.append(cum_sum[num_pcs[-1] - 1])
+                    if num_pcs[-1] < num_pcs_best:
+                        num_pcs_best = num_pcs[-1]
                         ind_best = j
                         rate_best = rate[-1]
-                print(num_pcs[-1], 'principal components explain', "{:.4%}".format(rate[-1]), 'of variance for cluster', i,
-                      'with', proposals[j])
+                        cum_sum_best = cum_sum
+                    elif num_pcs[-1] == num_pcs_best:
+                        if rate[-1] > rate_best:
+                            ind_best = j
+                            rate_best = rate[-1]
+                    print(num_pcs[-1], 'principal components explain', "{:.4%}".format(rate[-1]), 'of variance for cluster', i,
+                          'with', proposals[j])
 
-            self.kpcas.append(kpcas_local[ind_best])
-            self.q_predict_kpcas.append(X_kpca_local[ind_best])
-            if num_qoi is None:
-                self.num_pcs.append(num_pcs[ind_best])
-            else:
+                self.kpcas.append(kpcas_local[ind_best])
+                self.q_predict_kpcas.append(X_kpca_local[ind_best])
+                if num_qoi is None:
+                    self.num_pcs.append(num_pcs[ind_best])
+                else:
+                    self.num_pcs.append(num_qoi)
+                self.variance_rate.append(rate[ind_best])
+                self.Xpcas.append(X_kpca_local[ind_best])
+                print('Best kPCA for cluster ', i, ' is ', proposals[ind_best])
+                # print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(self.variance_rate[-1]),
+                #      'of variance.')
+                print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(cum_sum_best[self.num_pcs[-1]-1]),
+                      'of variance.')
+        else:
+            for i in range(self.num_clusters):
+                scaler = StandardScaler()
+                X_std = scaler.fit_transform(self.clean_predictions[np.where(self.predict_labels==i)[0], :])
+                self.scalers.append(scaler)
+                kpcas_local = []
+                X_kpca_local = []
+                eigenvalues = []
+                ind_best = None
+                rate_best = 0.0
+                for j, kwargs in enumerate(proposals):
+                    kpca = KernelPCA(**kwargs)
+                    X_kpca = kpca.fit_transform(X_std)
+                    X_kpca_local.append(X_kpca)
+                    kpcas_local.append(kpca)
+                    eigs = kpca.lambdas_
+                    eigenvalues.append(eigs)
+                    eigs = eigs / np.sum(eigs)
+                    cum_sum = np.cumsum(eigs)
+                    rate = cum_sum[num_qoi-1]
+                    if rate > rate_best:
+                        rate_best = rate
+                        ind_best = j
+                    print(num_qoi, 'principal components explain', "{:.4%}".format(rate),
+                          'of variance for cluster', i,
+                          'with', proposals[j])
+                self.kpcas.append(kpcas_local[ind_best])
+                self.q_predict_kpcas.append(X_kpca_local[ind_best])
+
                 self.num_pcs.append(num_qoi)
-            self.variance_rate.append(rate[ind_best])
-            self.Xpcas.append(X_kpca_local[ind_best])
-            print('Best kPCA for cluster ', i, ' is ', proposals[ind_best])
-            # print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(self.variance_rate[-1]),
-            #      'of variance.')
-            print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(cum_sum_best[self.num_pcs[-1]-1]),
-                  'of variance.')
+                self.variance_rate.append(rate_best)
+                self.Xpcas.append(X_kpca_local[ind_best])
+                print('Best kPCA for cluster ', i, ' is ', proposals[ind_best])
+                # print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(self.variance_rate[-1]),
+                #      'of variance.')
+                print(self.num_pcs[-1], 'principal components explain',
+                      "{:.4%}".format(rate_best),
+                      'of variance.')
         return self.kpcas
 
     def choose_qois(self):
@@ -431,7 +487,7 @@ class LUQ(object):
             self.obs_maps.append(X_kpca[:, 0:self.num_pcs[i]])
         return self.obs_maps
 
-    def learn_qois_and_transform(self, variance_rate=0.95,
+    def learn_qois_and_transform(self, variance_rate=None,
                                  proposals=({'kernel': 'linear'}, {'kernel': 'rbf'},
                                             {'kernel': 'sigmoid'}, {'kernel': 'poly'}, {'kernel': 'cosine'}),
                                  num_qoi=None):
@@ -484,7 +540,7 @@ class LUQ(object):
             samples_to_keep.append(rejection_sampling(r[i]))
 
             rs.append((r[i].mean()))
-        print('r values:', rs)
+        print('Average rejection rates for clusters:', rs)
         self.r = r
         return self.r
 
