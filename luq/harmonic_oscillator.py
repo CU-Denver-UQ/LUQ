@@ -74,6 +74,8 @@ time_end_idx = 49
 # Clean data
 learn.clean_data(time_start_idx=time_start_idx, time_end_idx=time_end_idx,
                      num_clean_obs=50, tol=1.0e-2, min_knots=5, max_knots=15)
-learn.dynamics()
+learn.dynamics(cluster_method='dbscan', kwargs={})
+import pdb
+pdb.set_trace()
 learn.learn_qois_and_transform()
 

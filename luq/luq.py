@@ -235,6 +235,9 @@ class LUQ(object):
         elif cluster_method == 'dbscan':
             self.cluster_labels = self.learn_dynamics_dbscan(kwargs)
             inertia = None
+        elif cluster_method == 'gmm':
+            self.cluster_labels = self.learn_dynamics_gmm(kwargs)
+            inertia = None
         self.num_clusters = int(np.max(self.cluster_labels) + 1)
         return self.cluster_labels, inertia
 
@@ -270,6 +273,18 @@ class LUQ(object):
         clustering = DBSCAN(**kwargs).fit(self.clean_predictions)
         return clustering.labels_
 
+    def learn_dynamics_gmm(self, kwargs):
+        """
+        Perform clustering with a Gaussian Mixture Model.
+        :param kwargs: keyword arguments
+        :return:
+        """
+        from sklearn.mixture import GaussianMixture
+
+        gmm = GaussianMixture(**kwargs)
+        gmm.fit(self.clean_predictions)
+        return gmm.predict(self.clean_predictions)
+
     def classify_dynamics(self, proposals=({'kernel': 'linear'},
                                            {'kernel': 'rbf'}, {'kernel': 'poly'}, {'kernel': 'sigmoid'}), k=10):
         """
@@ -293,7 +308,7 @@ class LUQ(object):
                 ind_min = i
         print('Best classifier is ', proposals[ind_min])
         print('Misclassification rate is ', mis_min)
-        self.classifier = clfs[i]
+        self.classifier = clfs[ind_min]
         self.predict_labels = self.classifier.predict(self.clean_predictions)
         return self.classifier, self.predict_labels
 
