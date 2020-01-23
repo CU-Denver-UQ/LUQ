@@ -29,7 +29,7 @@ class HarmonicOscillator(IVPBase):
     An ODE model for a harmonic oscillator
 
     Model is for harmonic motion
-    $$y''(t) + 2cy'(t) + \omega_0^2 x = f(t)$$
+    $$y''(t) + 2cy'(t) + \omega_0^2 y = f(t)$$
     with damping constant
     $$c \in [0.1,1]$$
     and natural frequency
