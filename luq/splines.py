@@ -26,13 +26,22 @@ def linear_C0_spline(times, data, num_knots, clean_times):
         return np.interp(x, knots, Qs)
 
     knots_init = np.linspace(times[0], times[-1], num_knots)[1:-1]
+    
+    param_bounds = np.zeros((2,2*num_knots-2))
+    for i in range(2*num_knots-2):
+        if i < num_knots:
+            param_bounds[:,i] = [-np.inf, np.inf]
+        else:
+            param_bounds[:,i] = [times[0], times[-1]]
 
+     
     # find piecewise linear splines for predictions
     q_pl, _ = optimize.curve_fit(lambda x, *params_0: wrapper_fit_func(x, num_knots, params_0),
                                  times,
                                  data,
-                                 p0=np.hstack([np.zeros(num_knots), knots_init]))
-
+                                 p0=np.hstack([np.zeros(num_knots), knots_init]),
+                                 bounds=param_bounds)
+    
     # calculate clean data
     clean_data = piecewise_linear(clean_times,
                                   q_pl[num_knots:2 * num_knots],
@@ -45,4 +54,4 @@ def linear_C0_spline(times, data, num_knots, clean_times):
     error = np.average(np.abs(clean_data_at_original - data))
     error = error / np.average(np.abs(data))
 
-    return clean_data, error
+    return clean_data, error, q_pl
