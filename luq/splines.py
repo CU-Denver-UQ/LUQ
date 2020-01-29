@@ -21,36 +21,44 @@ def linear_C0_spline(times, data, num_knots, clean_times):
         return piecewise_linear(x, knots, Qs)
 
     def piecewise_linear(x, knots, Qs):
+        knots = np.insert(knots, 0, 0)
+        knots = np.append(knots, 1)
+        return np.interp(x, knots, Qs)
+    
+    def piecewise_linear_clean(x, knots, Qs):
         knots = np.insert(knots, 0, times[0])
         knots = np.append(knots, times[-1])
         return np.interp(x, knots, Qs)
-
-    knots_init = np.linspace(times[0], times[-1], num_knots)[1:-1]
+    
+    knots_init = np.linspace(0, 1, num_knots)[1:-1]
     
     param_bounds = np.zeros((2,2*num_knots-2))
     for i in range(2*num_knots-2):
         if i < num_knots:
             param_bounds[:,i] = [-np.inf, np.inf]
         else:
-            param_bounds[:,i] = [times[0], times[-1]]
-
+            param_bounds[:,i] = [0, 1]
      
     # find piecewise linear splines for predictions
     q_pl, _ = optimize.curve_fit(lambda x, *params_0: wrapper_fit_func(x, num_knots, params_0),
-                                 times,
+                                 (times-times[0])/(times[-1]-times[0]),
                                  data,
                                  p0=np.hstack([np.zeros(num_knots), knots_init]),
                                  bounds=param_bounds)
     
+    q_pl[num_knots:] *= (times[-1]-times[0])
+    q_pl[num_knots:] += times[0]
+    
     # calculate clean data
-    clean_data = piecewise_linear(clean_times,
-                                  q_pl[num_knots:2 * num_knots],
-                                  q_pl[0:num_knots])
+    clean_data = piecewise_linear_clean(clean_times,
+                                        q_pl[num_knots:],
+                                        q_pl[0:num_knots])
 
     # calculate mean absolute error between spline and original data
-    clean_data_at_original = piecewise_linear(times,
-                                              q_pl[num_knots:2 * num_knots],
-                                              q_pl[0:num_knots])
+    clean_data_at_original = piecewise_linear_clean(times,
+                                                    q_pl[num_knots:],
+                                                    q_pl[0:num_knots])
+    
     error = np.average(np.abs(clean_data_at_original - data))
     error = error / np.average(np.abs(data))
 
