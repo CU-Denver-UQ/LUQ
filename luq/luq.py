@@ -45,6 +45,8 @@ class LUQ(object):
         self.pi_predict_kdes = []
         self.pi_obs_kdes = []
         self.scalers = []
+        self.predict_knots = []
+        self.obs_knots = []
         self.r = None
 
         # incorporate more into this
@@ -79,14 +81,14 @@ class LUQ(object):
         self.clean_obs = np.zeros((num_obs, num_clean_obs))
 
         for idx in range(num_predictions):
-            clean_predictions_old, error_old = linear_C0_spline(times=times,
+            clean_predictions_old, error_old, _ = linear_C0_spline(times=times,
                                                                 data=self.predicted_time_series[idx,
                                                                      time_start_idx:time_end_idx + 1],
                                                                 num_knots=min_knots,
                                                                 clean_times=clean_times)
             i = min_knots + 1
             while i <= max_knots:
-                clean_predictions_new, error_new = linear_C0_spline(times=times,
+                clean_predictions_new, error_new, q_pl = linear_C0_spline(times=times,
                             data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
                             num_knots=i,
                             clean_times=clean_times)
@@ -106,16 +108,17 @@ class LUQ(object):
             else:
                 print(idx, i, "knots being used with error of", error_new)
             self.clean_predictions[idx, :] = clean_predictions_new
+            self.predict_knots.append(q_pl)
 
         for idx in range(num_obs):
-            clean_obs_old, error_old = linear_C0_spline(times=times,
+            clean_obs_old, error_old, _ = linear_C0_spline(times=times,
                                                         data=self.observed_time_series[idx,
                             time_start_idx:time_end_idx + 1],
                                                         num_knots=min_knots,
                                                         clean_times=clean_times)
             i = min_knots + 1
             while i <= max_knots:
-                clean_obs_new, error_new = linear_C0_spline(times=times,
+                clean_obs_new, error_new, q_pl = linear_C0_spline(times=times,
                             data=self.observed_time_series[idx, time_start_idx:time_end_idx + 1],
                             num_knots=i,
                             clean_times=clean_times)
@@ -132,6 +135,7 @@ class LUQ(object):
             else:
                 print(idx, i, "knots being used with error of", error_new)
             self.clean_obs[idx, :] = clean_obs_new
+            self.obs_knots.append(q_pl)
         self.clean_times = clean_times
         return self.clean_predictions, self.clean_obs, self.clean_times
 
