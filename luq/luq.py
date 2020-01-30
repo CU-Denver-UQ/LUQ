@@ -112,10 +112,10 @@ class LUQ(object):
 
         for idx in range(num_obs):
             clean_obs_old, error_old, _ = linear_C0_spline(times=times,
-                                                        data=self.observed_time_series[idx,
+                                                           data=self.observed_time_series[idx,
                             time_start_idx:time_end_idx + 1],
-                                                        num_knots=min_knots,
-                                                        clean_times=clean_times)
+                                                           num_knots=min_knots,
+                                                           clean_times=clean_times)
             i = min_knots + 1
             while i <= max_knots:
                 clean_obs_new, error_new, q_pl = linear_C0_spline(times=times,
@@ -304,7 +304,11 @@ class LUQ(object):
         ind_min = None
 
         for i, prop in enumerate(proposals):
-            clf, mis = self.classify_dynamics_svm_kfold(k=k, kwargs=prop)
+            try:
+                clf, mis = self.classify_dynamics_svm_kfold(k=k, kwargs=prop)
+            except:
+                clf = None
+                mis = 1.0
             clfs.append(clf)
             misclass_rates.append(mis)
             if mis <= mis_min:
@@ -358,6 +362,7 @@ class LUQ(object):
 
         clf = svm.SVC(gamma='auto', **kwargs)
         clf.fit(data, labels)
+
         return clf
     
     def learn_qoi(self, variance_rate=None,
@@ -399,16 +404,24 @@ class LUQ(object):
                 rate_best = 0.0
                 cum_sum_best = None
                 for j, kwargs in enumerate(proposals):
-                    kpca = KernelPCA(**kwargs)
-                    X_kpca = kpca.fit_transform(X_std)
-                    X_kpca_local.append(X_kpca)
-                    kpcas_local.append(kpca)
-                    eigs = kpca.lambdas_
-                    eigenvalues.append(eigs)
-                    eigs = eigs / np.sum(eigs)
-                    cum_sum = np.cumsum(eigs)
-                    num_pcs.append(int(np.sum(np.less_equal(cum_sum, variance_rate)))+1)
-                    rate.append(cum_sum[num_pcs[-1] - 1])
+                    try:
+                        kpca = KernelPCA(**kwargs)
+                        X_kpca = kpca.fit_transform(X_std)
+                        X_kpca_local.append(X_kpca)
+                        kpcas_local.append(kpca)
+                        eigs = kpca.lambdas_
+                        eigenvalues.append(eigs)
+                        eigs = eigs / np.sum(eigs)
+                        cum_sum = np.cumsum(eigs)
+                        num_pcs.append(int(np.sum(np.less_equal(cum_sum, variance_rate)))+1)
+                        rate.append(cum_sum[num_pcs[-1] - 1])
+                    except:
+                        print(kwargs, ' not supported.')
+                        X_kpca_local.append(None)
+                        kpcas_local.append(None)
+                        eigenvalues(None)
+                        num_pcs.append(np.inf)
+                        rate.append(0.0)
                     if num_pcs[-1] < num_pcs_best:
                         num_pcs_best = num_pcs[-1]
                         ind_best = j
@@ -445,15 +458,24 @@ class LUQ(object):
                 ind_best = None
                 rate_best = 0.0
                 for j, kwargs in enumerate(proposals):
-                    kpca = KernelPCA(**kwargs)
-                    X_kpca = kpca.fit_transform(X_std)
-                    X_kpca_local.append(X_kpca)
-                    kpcas_local.append(kpca)
-                    eigs = kpca.lambdas_
-                    eigenvalues.append(eigs)
-                    eigs = eigs / np.sum(eigs)
-                    cum_sum = np.cumsum(eigs)
-                    rate = cum_sum[num_qoi-1]
+                    try:
+                        kpca = KernelPCA(**kwargs)
+                        X_kpca = kpca.fit_transform(X_std)
+                        X_kpca_local.append(X_kpca)
+                        kpcas_local.append(kpca)
+                        eigs = kpca.lambdas_
+                        eigenvalues.append(eigs)
+                        eigs = eigs / np.sum(eigs)
+                        cum_sum = np.cumsum(eigs)
+                        rate = cum_sum[num_qoi-1]
+                    except:
+                        print(kwargs, ' not supported.')
+                        X_kpca_local.append(None)
+                        kpcas_local.append(None)
+                        eigenvalues(None)
+                        num_pcs.append(np.inf)
+                        rate = 0.0
+
                     if rate > rate_best:
                         rate_best = rate
                         ind_best = j
@@ -559,7 +581,7 @@ class LUQ(object):
             samples_to_keep.append(rejection_sampling(r[i]))
 
             rs.append((r[i].mean()))
-        print('Average rejection rates for clusters:', rs)
+        print('Diagnostic for clusters [sample average of ratios in each cluster]:', rs)
         self.r = r
         return self.r
 
