@@ -473,7 +473,7 @@ class LUQ(object):
                         X_kpca_local.append(None)
                         kpcas_local.append(None)
                         eigenvalues.append(None)
-                        num_pcs.append(np.inf)
+                        #num_pcs.append(np.inf)
                         rate = 0.0
 
                     if rate > rate_best:
