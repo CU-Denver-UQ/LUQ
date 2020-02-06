@@ -419,7 +419,7 @@ class LUQ(object):
                         print(kwargs, ' not supported.')
                         X_kpca_local.append(None)
                         kpcas_local.append(None)
-                        eigenvalues(None)
+                        eigenvalues.append(None)
                         num_pcs.append(np.inf)
                         rate.append(0.0)
                     if num_pcs[-1] < num_pcs_best:
@@ -472,7 +472,7 @@ class LUQ(object):
                         print(kwargs, ' not supported.')
                         X_kpca_local.append(None)
                         kpcas_local.append(None)
-                        eigenvalues(None)
+                        eigenvalues.append(None)
                         num_pcs.append(np.inf)
                         rate = 0.0
 
