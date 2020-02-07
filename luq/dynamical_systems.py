@@ -1,4 +1,5 @@
 # Copyright 2019 Steven Mattis and Troy Butler
+
 import numpy as np
 
 
@@ -77,8 +78,16 @@ class HarmonicOscillator(IVPBase):
               ics,
               params,
               t_eval,
-              kwargs={},
+              kwargs=None,
               idx=0):
+        """
+        Solve the system over time.
+        :param ics: Initial conditions
+        :param params: Parameters
+        :param t_eval: Times at which to evaluate
+        :param kwargs: Keyword arguments for solver.
+        :param idx: Variable index of value to return.
+        """
 
         def y(t, c, omega_0, a, b):
             """
@@ -268,24 +277,6 @@ class Lorenz(ODE):
             return [j1, j2, j3]
         return jacobian
 
-# N = 10
-# num_samples = int(N)
-#
-# params = np.random.uniform(size=(num_samples, 2))
-# params[:, 0] = 0.1 * params[:, 0] + 0.05
-# params[:, 1] = 0.95 * params[:, 1] + 0.05
-# #params[:, 0] = 0.1
-# ics = 2.0 * np.random.uniform(size=(num_samples, 2))
-# times = np.linspace(0.1, 40.0, 1000)
-# prob = Selkov()
-# A = prob.solve(ics=ics, params=params, t_eval=times)
-# import matplotlib.pyplot as plt
-# plt.figure()
-# for i in range(N):
-#     plt.plot(times, A[i,:])
-# plt.show()
-# import pdb
-# pdb.set_trace()
 
 
 

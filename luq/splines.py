@@ -1,18 +1,27 @@
-# Copyright 2019 Steven Mattis and Troy Butler
+# Copyright 2019-2020 Steven Mattis and Troy Butler
 from scipy import optimize
 import numpy as np
 
-# Splines and other methods for cleaning data.
+# Methods for finding optimal splines for cleaning data.
 
 
-def linear_C0_spline(times, data, num_knots, clean_times):
+def linear_c0_spline(times, data, num_knots, clean_times, spline_old=None, verbose=False):
     """
     Clean a time series over window with C0 linear splines.
-    :param times: time window
+    :param times: time series over window
+    :type times: :class:`numpy.ndarray`
     :param data: time series data
+    :type data: :class:`numpy.ndarray`
     :param num_knots: number of knots to use
+    :type num_knots: int
     :param clean_times: number of clean values wanted
-    :return:
+    :type clean_times: :class:`numpy.ndarray`
+    :param spline_old: array containing knots and values from previous spline iteration
+    :type  spline_old: :class:`numpy.ndarray`
+    :param verbose: Make true to print summaries of curvefitting routines.
+    :type verbose: bool
+    :return: clean data array, l1-type error between spline and data, and spline array
+    :rtype: :class:`numpy.ndarray`, float,  :class:`numpy.ndarray`
     """
 
     def wrapper_fit_func(x, N, *args):
@@ -20,7 +29,7 @@ def linear_C0_spline(times, data, num_knots, clean_times):
         knots = list(args[0][N:])
         return piecewise_linear(x, knots, Qs)
 
-    def wrapper_fit_func_Qs(x, knots, *args):
+    def wrapper_fit_func_qs(x, knots, *args):
         Qs = list(args[0])
         return piecewise_linear(x, knots, Qs)
 
@@ -35,7 +44,13 @@ def linear_C0_spline(times, data, num_knots, clean_times):
         return np.interp(x, knots, Qs)
     
     knots_init = np.linspace(0, 1, num_knots)[1:-1]
-    
+    if spline_old is None:
+        vals_init = np.zeros((num_knots,))
+    else:
+        vals_init = piecewise_linear_clean(np.linspace(0, 1, num_knots),
+                               spline_old[num_knots-1:],
+                               spline_old[0:num_knots-1])
+
     param_bounds = np.zeros((2, 2*num_knots-2))
     for i in range(2*num_knots-2):
         if i < num_knots:
@@ -48,16 +63,19 @@ def linear_C0_spline(times, data, num_knots, clean_times):
         q_pl, _ = optimize.curve_fit(lambda x, *params_0: wrapper_fit_func(x, num_knots, params_0),
                                      (times-times[0])/(times[-1]-times[0]),
                                      data,
-                                     p0=np.hstack([np.zeros(num_knots), knots_init]),
-                                     bounds=param_bounds)
+                                     p0=np.hstack([vals_init, knots_init]),
+                                     bounds=param_bounds,
+                                     verbose=verbose)
+
     except RuntimeError:
-        # Use uniform knots
+        # Use uniform knots if optimization fails
         print('Optimization of knot locations failed. Using uniform knots.')
         knots = np.linspace(0, 1, num_knots)[1:-1]
-        q_pl, _ = optimize.curve_fit(lambda x, *params_0: wrapper_fit_func_Qs(x, knots, params_0),
+        q_pl, _ = optimize.curve_fit(lambda x, *params_0: wrapper_fit_func_qs(x, knots, params_0),
                                      (times-times[0])/(times[-1]-times[0]),
                                      data,
-                                     p0=np.zeros(num_knots))
+                                     p0=vals_init,
+                                     verbose=verbose)
         q_pl = np.hstack([q_pl, knots])
 
     q_pl[num_knots:] *= (times[-1]-times[0])

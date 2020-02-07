@@ -1,4 +1,4 @@
-# Copyright 2019 Steven A. Mattis and Troy Butler
+# Copyright 2019-2020 Steven A. Mattis and Troy Butler
 
 import numpy as np
 from splines import *
@@ -28,8 +28,8 @@ class LUQ(object):
         self.predicted_time_series = predicted_time_series
         self.observed_time_series = observed_time_series
         self.times = times
-        self.clean_times = None   # surrogate_times -> clean_times
-        self.clean_predictions = None # surrogate -> clean
+        self.clean_times = None
+        self.clean_predictions = None
         self.clean_obs = None
         self.num_clusters = None
         self.cluster_labels = None
@@ -58,19 +58,27 @@ class LUQ(object):
                      'kpca_kernel': None,
                      'num_principal_components': None}
 
-    def clean_data(self, time_start_idx, time_end_idx, num_clean_obs, tol, min_knots=3, max_knots=100):
+    def clean_data(self, time_start_idx, time_end_idx, num_clean_obs, tol, min_knots=3, max_knots=100, verbose=False):
         """
         Clean observed and predicted time series data so that difference between iterations is within tolerance.
         :param time_start_idx: first time index to clean
+        :type time_start_idx: int
         :param time_end_idx: last time index to clean
+        :type time_end_idx: int
         :param num_clean_obs: number of clean observations to make
+        :type num_clean_obs: int
         :param tol: tolerance for constructing splines
+        :type tol: float
         :param min_knots: maximum number of knots allowed
+        :type min_knots: int
         :param max_knots: minimum number of knots allowed
-        :return:
+        :type max_knots: int
+        :param verbose: display termination reports
+        :type verbose: bool
+        :return: arrays of clean predictions, clean observations, and clean times
+        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
         """
 
-        i = min_knots
         # Use _old and _new to compare to tol and determine when to stop adding knots
         # Compute _old before looping and then i=i+1
         times = self.times[time_start_idx:time_end_idx + 1]
@@ -81,17 +89,20 @@ class LUQ(object):
         self.clean_obs = np.zeros((num_obs, num_clean_obs))
 
         for idx in range(num_predictions):
-            clean_predictions_old, error_old, _ = linear_C0_spline(times=times,
+            clean_predictions_old, error_old, q_pl = linear_c0_spline(times=times,
                                                                 data=self.predicted_time_series[idx,
                                                                      time_start_idx:time_end_idx + 1],
                                                                 num_knots=min_knots,
-                                                                clean_times=clean_times)
+                                                                clean_times=clean_times,
+                                                                verbose=verbose)
             i = min_knots + 1
             while i <= max_knots:
-                clean_predictions_new, error_new, q_pl = linear_C0_spline(times=times,
+                clean_predictions_new, error_new, q_pl = linear_c0_spline(times=times,
                             data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
                             num_knots=i,
-                            clean_times=clean_times)
+                            clean_times=clean_times,
+                            spline_old=q_pl,
+                            verbose=verbose)
 
                 # After an _old and a _new is computed (when i>min_knots)
                 print(idx, i, error_new)
@@ -111,17 +122,18 @@ class LUQ(object):
             self.predict_knots.append(q_pl)
 
         for idx in range(num_obs):
-            clean_obs_old, error_old, _ = linear_C0_spline(times=times,
+            clean_obs_old, error_old, q_pl = linear_c0_spline(times=times,
                                                            data=self.observed_time_series[idx,
                             time_start_idx:time_end_idx + 1],
                                                            num_knots=min_knots,
-                                                           clean_times=clean_times)
+                                                           clean_times=clean_times, verbose=verbose)
             i = min_knots + 1
             while i <= max_knots:
-                clean_obs_new, error_new, q_pl = linear_C0_spline(times=times,
+                clean_obs_new, error_new, q_pl = linear_c0_spline(times=times,
                             data=self.observed_time_series[idx, time_start_idx:time_end_idx + 1],
                             num_knots=i,
-                            clean_times=clean_times)
+                            clean_times=clean_times,
+                            spline_old=q_pl, verbose=verbose)
                 print(idx, i, error_new)
                 diff = np.average(np.abs(clean_obs_new - clean_obs_old)) / \
                     np.average(np.abs(self.observed_time_series[idx, time_start_idx:time_end_idx + 1]))
@@ -139,16 +151,26 @@ class LUQ(object):
         self.clean_times = clean_times
         return self.clean_predictions, self.clean_obs, self.clean_times
 
-    def clean_data_tol(self, time_start_idx, time_end_idx, num_clean_obs, tol, min_knots=3, max_knots=100):
+    def clean_data_tol(self, time_start_idx, time_end_idx, num_clean_obs, tol, min_knots=3, max_knots=100,
+                       verbose=False):
         """
         Clean observed and predicted time series data so that the mean l1 error is within a tolerance.
         :param time_start_idx: first time index to clean
+        :type time_start_idx: int
         :param time_end_idx: last time index to clean
+        :type time_end_idx: int
         :param num_clean_obs: number of clean observations to make
+        :type num_clean_obs: int
         :param tol: tolerance for constructing splines
+        :type tol: float
         :param min_knots: maximum number of knots allowed
+        :type min_knots: int
         :param max_knots: minimum number of knots allowed
-        :return:
+        :type max_knots: int
+        :param verbose: display termination reports
+        :type verbose: bool
+        :return: arrays of clean predictions, clean observations, and clean times
+        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
         """
 
         i = min_knots
@@ -163,11 +185,13 @@ class LUQ(object):
 
         for idx in range(num_predictions):
             i = min_knots
+            q_pl_old = None
             while i <= max_knots:
-                clean_predictions, error = linear_C0_spline(times=times,
+                clean_predictions, error, q_pl = linear_c0_spline(times=times,
                             data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
                             num_knots=i,
-                            clean_times=clean_times)
+                            clean_times=clean_times,
+                            spline_old=q_pl_old)
 
                 # After an _old and a _new is computed (when i>min_knots)
                 print(idx, i, error)
@@ -175,6 +199,7 @@ class LUQ(object):
                     break
                 else:
                     i += 1
+                    q_pl_old = q_pl
                     # and _old = _new
             if i > max_knots:
                 print("Warning: maximum number of knots reached.")
@@ -184,17 +209,20 @@ class LUQ(object):
 
         for idx in range(num_obs):
             i = min_knots
+            q_pl_old = None
             while i <= max_knots:
-                clean_obs, error = linear_C0_spline(times,
+                clean_obs, error, q_pl = linear_c0_spline(times,
                                     data=self.observed_time_series[idx, time_start_idx:time_end_idx + 1],
                                     num_knots=i,
-                                    clean_times=clean_times)
+                                    clean_times=clean_times,
+                                    spline_old=q_pl_old)
                 # After an _old and a _new is computed (when i>min_knots)
                 print(idx, i, error)
                 if error <= tol:
                     break
                 else:
                     i += 1
+                    q_pl_old = q_pl
                     # and _old = _new
             if i > max_knots:
                 print("Warning: maximum number of knots reached.")
@@ -211,25 +239,30 @@ class LUQ(object):
                  {'kernel': 'rbf'}, {'kernel': 'poly'}, {'kernel': 'sigmoid'}),
                  k = 10):
         """
-
+        Learn and classify dynamics, then classify observations.
         :param cluster_method: type of clustering to use ('kmeans' or 'spectral')
+        :type cluster_method: str
         :param kwargs: keyword arguments for clustering method
+        :type kwargs: dict
         :param proposals: proposal keyword arguments for svm classifier
+        :type proposals: list
         :param k: number of cases for k-fold cross-validation
-        :return:
+        :type k: int
         """
 
         self.learn_dynamics(cluster_method=cluster_method, kwargs=kwargs)
         self.classify_dynamics(proposals=proposals, k=k)
         self.classify_observations()
-        return
-    
+
     def learn_dynamics(self, cluster_method='kmeans', kwargs={'n_clusters': 3, 'n_init': 10}):
         """
-        Learn dynamics
+        Learn dynamics.
         :param cluster_method: type of clustering to use ('kmeans' or 'spectral')
+        :type cluster_method: str
         :param kwargs: keyword arguments for clustering method
-        :return:
+        :type kwargs: dict
+        :return: cluster labels and inertia (None if not kmeans)
+        :rtype: :class:`numpy.ndarray`, float
         """
         if cluster_method == 'kmeans':
             self.cluster_labels, inertia = self.learn_dynamics_kmeans(kwargs)
@@ -248,8 +281,11 @@ class LUQ(object):
     def learn_dynamics_kmeans(self, kwargs):
         """
         Perform clustering with k-means.
-        :param kwargs: keyword arguments
-        :return:
+        See https://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html.
+        :param kwargs: keyword arguments for sklearn
+        :type kwargs: dict
+        :return: cluster labels and inertias
+        :rtype: :class:`numpy.ndarray`, float
         """
         from sklearn.cluster import KMeans
 
@@ -260,8 +296,11 @@ class LUQ(object):
     def learn_dynamics_spectral(self, kwargs):
         """
         Perform clustering with spectral clustering.
+        See https://scikit-learn.org/stable/modules/generated/sklearn.cluster.SpectralClustering.html#sklearn.cluster.SpectralClustering
         :param kwargs: keyword arguments
-        :return:
+        :type kwargs: dict
+        :return: cluster labels
+        :rtype: :class:`numpy.ndarray`
         """
         from sklearn.cluster import SpectralClustering
         clustering = SpectralClustering(**kwargs).fit(self.clean_predictions)
@@ -270,8 +309,11 @@ class LUQ(object):
     def learn_dynamics_dbscan(self, kwargs):
         """
         Perform clustering with DBSCAN clustering.
+        See https://scikit-learn.org/stable/modules/generated/sklearn.cluster.DBSCAN.html
         :param kwargs: keyword arguments
-        :return:
+        :type kwargs: dict
+        :return: cluster labels
+        :rtype: :class:`numpy.ndarray`
         """
         from sklearn.cluster import DBSCAN
         clustering = DBSCAN(**kwargs).fit(self.clean_predictions)
@@ -280,11 +322,13 @@ class LUQ(object):
     def learn_dynamics_gmm(self, kwargs):
         """
         Perform clustering with a Gaussian Mixture Model.
+        See https://scikit-learn.org/stable/modules/generated/sklearn.mixture.GaussianMixture.html.
         :param kwargs: keyword arguments
-        :return:
+        :type kwargs: dict
+        :return: cluster labels
+        :rtype: :class:`numpy.ndarray`
         """
         from sklearn.mixture import GaussianMixture
-
         gmm = GaussianMixture(**kwargs)
         gmm.fit(self.clean_predictions)
         return gmm.predict(self.clean_predictions)
@@ -292,10 +336,15 @@ class LUQ(object):
     def classify_dynamics(self, proposals=({'kernel': 'linear'},
                                            {'kernel': 'rbf'}, {'kernel': 'poly'}, {'kernel': 'sigmoid'}), k=10):
         """
-        Classify dynamics using best SVM method based on k-fold cross validation.
-        :param proposals: proposal SVM keyword arguments
+        Classify dynamics using best SVM method based on k-fold cross validation from a list of proposal keyword
+        arguments for `sklearn.svm.LinearSVC`.
+        https://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html#sklearn.svm.SVC
+        :param proposals: list of proposal SVM keyword arguments
+        :type proposals: list
         :param k: k for k-fold cross validation
-        :return:
+        :type k: int
+        :return: classifier object and labels of predictions
+        :rtype: :class:`sklearn.svm.SVC`, :class:`numpy.ndarray`
         """
         clfs = []
         misclass_rates = []
@@ -320,12 +369,15 @@ class LUQ(object):
         self.predict_labels = self.classifier.predict(self.clean_predictions)
         return self.classifier, self.predict_labels
 
-    def classify_dynamics_svm_kfold(self, k=10,  kwargs={}):
+    def classify_dynamics_svm_kfold(self, k=10,  kwargs=None):
         """
         Classify dynamics with given SVM method and do k-fold cross validation.
         :param k: k for k-fold cross validation
+        :type k: int
         :param kwargs: keyword arguments for SVM
-        :return:
+        :type kwargs: dict
+        :return: classifier object and misclassification rate
+        :rtype: :class:`sklearn.svm.SVC`, float
         """
         import numpy.random as nrand
         num_clean = self.clean_predictions.shape[0]
@@ -347,13 +399,17 @@ class LUQ(object):
         clf = self.classify_dynamics_svm(kwargs=kwargs, data=self.clean_predictions, labels=self.cluster_labels)
         return clf, np.average(misclass_rates)
 
-    def classify_dynamics_svm(self, kwargs={}, data=None, labels=None):
+    def classify_dynamics_svm(self, kwargs=None, data=None, labels=None):
         """
         Classify dynamics with SVM.
         :param kwargs: keyword arguments for SVM
+        :type kwargs: dict
         :param data: data to classify
+        :type data: :class:`numpy.ndarray`
         :param labels: labels for supervised learning
-        :return:
+        :type labels: :class:`numpy.ndarray`
+        :return: classifier object
+        :rtype: :class:`sklearn.svm.SVC`
         """
         from sklearn import svm
         if data is None:
@@ -371,10 +427,15 @@ class LUQ(object):
                   num_qoi=None):
         """
         Learn best quantities of interest from proposal kernel PCAs.
+        See https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.KernelPCA.html.
         :param variance_rate: proportion of variance QoIs should capture.
-        :param proposals: proposal keyword arguments for kPCAs
+        :type variance_rate: float
+        :param proposals: proposal keyword arguments for kPCAs (tuple of dictionaries)
+        :type proposals: tuple
         :param num_qoi: number of quantities of interest to take (optional)
-        :return:
+        :type num_qoi: int
+        :return: Kernel PCA object
+        :rtype: :class:`sklearn.decomposition.KernelPCA`
         """
         from sklearn.decomposition import PCA, KernelPCA
         from sklearn.preprocessing import StandardScaler
@@ -499,7 +560,8 @@ class LUQ(object):
     def choose_qois(self):
         """
         Transform predicted time series to new QoIs.
-        :return:
+        :return: transformed predictions
+        :rtype: :class:`numpy.ndarray`
         """
         self.predict_maps = []
         for i in range(self.num_clusters):
@@ -509,7 +571,8 @@ class LUQ(object):
     def classify_observations(self):
         """
         Classify observations into dynamics clusters.
-        :return:
+        :return: cluster labels for observations
+        :rtype: :class:`numpy.ndarray`
         """
         self.obs_labels = self.classifier.predict(self.clean_obs)
         return self.obs_labels
@@ -517,12 +580,11 @@ class LUQ(object):
     def transform_observations(self):
         """
         Transform observed time series to new QoIs.
-        :return:
+        :return: transformed observations
+        :rtype: :class:`numpy.ndarray`
         """
-        #from sklearn.preprocessing import StandardScaler
         self.obs_maps = []
         for i in range(self.num_clusters):
-            #scaler = StandardScaler()
             X_std = self.scalers[i].transform(self.clean_obs[np.where(self.obs_labels == i)[0], :])
             X_kpca = self.kpcas[i].transform(X_std)
             self.obs_maps.append(X_kpca[:, 0:self.num_pcs[i]])
@@ -535,15 +597,20 @@ class LUQ(object):
         """
         Learn Quantities of Interest and transform time series data.
         :param variance_rate: proportion of variance QoIs should capture.
-        :param proposals: proposal keyword arguments for kPCAs
+        :type variance_rate: float
+        :param proposals: proposal keyword arguments for kPCAs (a tuple of dictionaries)
+        :type proposals: tuple
         :param num_qoi: number of quantities of interest to take (optional)
-        :return:
+        :type num_qoi: int
+        :return: transformed prediction and observation maps
+        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`
         """
         self.learn_qoi(variance_rate=variance_rate, proposals=proposals, num_qoi=num_qoi)
         self.choose_qois()
         self.transform_observations()
         return self.predict_maps, self.obs_maps
 
+    # Move the below out of LUQ
     def generate_kdes(self):
         from scipy.stats import gaussian_kde as GKDE
 
