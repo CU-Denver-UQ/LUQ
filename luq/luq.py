@@ -113,12 +113,16 @@ class LUQ(object):
                     break
                 else:
                     i += 1
-                    clean_predictions_old = clean_predictions_new
+                    if i <= max_knots:
+                        clean_predictions_old = clean_predictions_new
             if i > max_knots:
                 print("Warning: maximum number of knots reached.")
             else:
                 print(idx, i, "knots being used with error of", error_new)
-            self.clean_predictions[idx, :] = clean_predictions_new
+            if i > max_knots and error_old < error_new:
+                self.clean_predictions[idx, :] = clean_predictions_old
+            else:
+                self.clean_predictions[idx, :] = clean_predictions_new
             self.predict_knots.append(q_pl)
 
         for idx in range(num_obs):
@@ -141,12 +145,16 @@ class LUQ(object):
                     break
                 else:
                     i += 1
-                    clean_obs_old = clean_obs_new
+                    if i <= max_knots:
+                        clean_obs_old = clean_obs_new
             if i > max_knots:
                 print("Warning: maximum number of knots reached.")
             else:
                 print(idx, i, "knots being used with error of", error_new)
-            self.clean_obs[idx, :] = clean_obs_new
+            if i > max_knots and error_old < error_new:
+                self.clean_obs[idx, :] = clean_obs_old
+            else:
+                self.clean_obs[idx, :] = clean_obs_new
             self.obs_knots.append(q_pl)
         self.clean_times = clean_times
         return self.clean_predictions, self.clean_obs, self.clean_times

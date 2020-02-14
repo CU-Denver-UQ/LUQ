@@ -74,8 +74,7 @@ def linear_c0_spline(times, data, num_knots, clean_times, spline_old=None, verbo
         q_pl, _ = optimize.curve_fit(lambda x, *params_0: wrapper_fit_func_qs(x, knots, params_0),
                                      (times-times[0])/(times[-1]-times[0]),
                                      data,
-                                     p0=vals_init,
-                                     verbose=verbose)
+                                     p0=vals_init)
         q_pl = np.hstack([q_pl, knots])
 
     q_pl[num_knots:] *= (times[-1]-times[0])
