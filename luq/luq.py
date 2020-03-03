@@ -445,11 +445,18 @@ class LUQ(object):
         :return: Kernel PCA object
         :rtype: :class:`sklearn.decomposition.KernelPCA`
         """
-        from sklearn.decomposition import PCA, KernelPCA
+        from sklearn.decomposition import KernelPCA
         from sklearn.preprocessing import StandardScaler
 
         if variance_rate is None and num_qoi is None:
             variance_rate = 0.99
+
+        if self.num_clusters is None:
+            # Set up single cluster if no clustering has been done
+            print("No clustering performed. Assuming a single cluster." )
+            self.num_clusters = 1
+            self.predict_labels = np.array(self.predicted_time_series.shape[0] * [0])
+            self.obs_labels = np.array(self.observed_time_series.shape[0] * [0])
 
         self.kpcas = []
         self.q_predict_kpcas = []
