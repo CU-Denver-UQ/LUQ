@@ -35,6 +35,7 @@ class LUQ(object):
         self.cluster_labels = None
         self.predict_labels = None
         self.obs_labels = None
+        self.obs_empty_cluster = []
         self.kpcas = None
         self.q_predict_kpcas = None
         self.predict_maps = []
@@ -507,7 +508,7 @@ class LUQ(object):
                         if rate[-1] > rate_best:
                             ind_best = j
                             rate_best = rate[-1]
-                    print(num_pcs[-1], 'principal components explain', "{:.4%}".format(rate[-1]), 'of variance for cluster', i,
+                    print(num_pcs[-1], 'PCs explain', "{:.4%}".format(rate[-1]), 'of var. for cluster', i,
                           'with', proposals[j])
 
                 self.kpcas.append(kpcas_local[ind_best])
@@ -518,11 +519,13 @@ class LUQ(object):
                     self.num_pcs.append(num_qoi)
                 self.variance_rate.append(rate[ind_best])
                 self.Xpcas.append(X_kpca_local[ind_best])
+                print('---------------------------------------------')
                 print('Best kPCA for cluster ', i, ' is ', proposals[ind_best])
                 # print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(self.variance_rate[-1]),
                 #      'of variance.')
-                print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(cum_sum_best[self.num_pcs[-1]-1]),
+                print(self.num_pcs[-1], 'PCs explain', "{:.4%}".format(cum_sum_best[self.num_pcs[-1]-1]),
                       'of variance.')
+                print('---------------------------------------------')
         else:
             for i in range(self.num_clusters):
                 scaler = StandardScaler()
@@ -555,8 +558,8 @@ class LUQ(object):
                     if rate > rate_best:
                         rate_best = rate
                         ind_best = j
-                    print(num_qoi, 'principal components explain', "{:.4%}".format(rate),
-                          'of variance for cluster', i,
+                    print(num_qoi, 'PCs explain', "{:.4%}".format(rate),
+                          'of var. for cluster', i,
                           'with', proposals[j])
                 self.kpcas.append(kpcas_local[ind_best])
                 self.q_predict_kpcas.append(X_kpca_local[ind_best])
@@ -564,12 +567,14 @@ class LUQ(object):
                 self.num_pcs.append(num_qoi)
                 self.variance_rate.append(rate_best)
                 self.Xpcas.append(X_kpca_local[ind_best])
+                print('---------------------------------------------')
                 print('Best kPCA for cluster ', i, ' is ', proposals[ind_best])
                 # print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(self.variance_rate[-1]),
                 #      'of variance.')
-                print(self.num_pcs[-1], 'principal components explain',
+                print(self.num_pcs[-1], 'PCs explain',
                       "{:.4%}".format(rate_best),
                       'of variance.')
+                print('---------------------------------------------')
         return self.kpcas
 
     def choose_qois(self):
@@ -590,6 +595,12 @@ class LUQ(object):
         :rtype: :class:`numpy.ndarray`
         """
         self.obs_labels = self.classifier.predict(self.clean_obs)
+        # Mark empty observation clusters
+        for i in range(self.num_clusters):
+            if len(np.where(self.obs_labels == i)[0]) == 0:
+                self.obs_empty_cluster.append(True)
+            else:
+                self.obs_empty_cluster.append(False)
         return self.obs_labels
 
     def transform_observations(self):
@@ -600,9 +611,12 @@ class LUQ(object):
         """
         self.obs_maps = []
         for i in range(self.num_clusters):
-            X_std = self.scalers[i].transform(self.clean_obs[np.where(self.obs_labels == i)[0], :])
-            X_kpca = self.kpcas[i].transform(X_std)
-            self.obs_maps.append(X_kpca[:, 0:self.num_pcs[i]])
+            if not self.obs_empty_cluster[i]:
+                X_std = self.scalers[i].transform(self.clean_obs[np.where(self.obs_labels == i)[0], :])
+                X_kpca = self.kpcas[i].transform(X_std)
+                self.obs_maps.append(X_kpca[:, 0:self.num_pcs[i]])
+            else:
+                self.obs_maps.append(None)
         return self.obs_maps
 
     def learn_qois_and_transform(self, variance_rate=None,
