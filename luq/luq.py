@@ -1,7 +1,7 @@
 # Copyright 2019-2020 Steven A. Mattis and Troy Butler
 
 import numpy as np
-from splines import *
+from luq.splines import *
 
 
 class LUQ(object):
@@ -508,7 +508,7 @@ class LUQ(object):
                         if rate[-1] > rate_best:
                             ind_best = j
                             rate_best = rate[-1]
-                    print(num_pcs[-1], 'PCs explain', "{:.4%}".format(rate[-1]), 'of var. for cluster', i,
+                    print(num_pcs[-1], 'PCs explain', "{:.4%}".format(rate[-1]), 'of var. for cluster', i+1,
                           'with', proposals[j])
 
                 self.kpcas.append(kpcas_local[ind_best])
@@ -520,7 +520,7 @@ class LUQ(object):
                 self.variance_rate.append(rate[ind_best])
                 self.Xpcas.append(X_kpca_local[ind_best])
                 print('---------------------------------------------')
-                print('Best kPCA for cluster ', i, ' is ', proposals[ind_best])
+                print('Best kPCA for cluster ', i+1, ' is ', proposals[ind_best])
                 # print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(self.variance_rate[-1]),
                 #      'of variance.')
                 print(self.num_pcs[-1], 'PCs explain', "{:.4%}".format(cum_sum_best[self.num_pcs[-1]-1]),
@@ -559,7 +559,7 @@ class LUQ(object):
                         rate_best = rate
                         ind_best = j
                     print(num_qoi, 'PCs explain', "{:.4%}".format(rate),
-                          'of var. for cluster', i,
+                          'of var. for cluster', i+1,
                           'with', proposals[j])
                 self.kpcas.append(kpcas_local[ind_best])
                 self.q_predict_kpcas.append(X_kpca_local[ind_best])
@@ -568,7 +568,7 @@ class LUQ(object):
                 self.variance_rate.append(rate_best)
                 self.Xpcas.append(X_kpca_local[ind_best])
                 print('---------------------------------------------')
-                print('Best kPCA for cluster ', i, ' is ', proposals[ind_best])
+                print('Best kPCA for cluster ', i+1, ' is ', proposals[ind_best])
                 # print(self.num_pcs[-1], 'principal components explain', "{:.4%}".format(self.variance_rate[-1]),
                 #      'of variance.')
                 print(self.num_pcs[-1], 'PCs explain',
