@@ -529,7 +529,8 @@ class LUQ(object):
         else:
             for i in range(self.num_clusters):
                 scaler = StandardScaler()
-                X_std = scaler.fit_transform(self.clean_predictions[np.where(self.predict_labels==i)[0], :])
+                predict_ptr = np.where(self.predict_labels==i)[0]
+                X_std = scaler.fit_transform(self.clean_predictions[predict_ptr, :])
                 self.scalers.append(scaler)
                 kpcas_local = []
                 X_kpca_local = []
