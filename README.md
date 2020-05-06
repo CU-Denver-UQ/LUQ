@@ -58,7 +58,7 @@ In LUQ this is implemented by:
                    kwargs={'n_clusters': 3, 'n_init': 10},
                    proposals = ({'kernel': 'linear'}, {'kernel': 'rbf'}, {'kernel': 'poly'}, {'kernel': 'sigmoid'}),
                    k = 10)
-where `cluster_method` defines the type of clustering algorithm to use, `kwargs` is a dictionary of arguments for the clustering algorithm, `proposals` is an array of dictionaries of proposed arguments for ``sklearn.svm.SVC``, and `k` is the k for the k-fold cross-validation.
+where `cluster_method` defines the type of clustering algorithm to use, `kwargs` is a dictionary of arguments for the clustering algorithm, `proposals` is an array of dictionaries of proposed arguments for [``sklearn.svm.SVC``](https://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html), and `k` is the k for the k-fold cross-validation.
 
 ### Feature extraction (learning quantities of interest)
 Finally, the best kernel PCAs are calculated for each cluster and the transformed predictions and observations are computed.
