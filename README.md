@@ -74,7 +74,7 @@ or a proportion of variance explained by the minimum number of components can be
                                                           proposals=({'kernel': 'linear'}, {'kernel': 'rbf'},
                                                                      {'kernel': 'sigmoid'}, {'kernel': 'cosine'}))
                                                                      
-where `proposals` contains dictionaries of proposed kernel parameters.
+where `proposals` contains dictionaries of proposed [kernel parameters](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.KernelPCA.html#sklearn.decomposition.KernelPCA).
 
 ## Examples
 Several documented examples can be found in the examples directory, including time series data from:
