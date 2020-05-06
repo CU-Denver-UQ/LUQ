@@ -1,7 +1,7 @@
 # LUQ: Learning Uncertain Quantities
 LUQ is a Python package that provides simple implementations of the algorithms for learning uncertain quantities.
-LUQ utilizes several publicly available Python packages that are commonly used for scientific computing ([NumPy](https://numpy.org/) and [SciPy](https://www.scipy.org/)) and machine learning ([scikit-learn](https://scikit-learn.org/)).
 The package provides a simple end-to-end workflow going from raw time series data to low-dimensional quantites of interest which can be used for data-consistent inversion.
+LUQ utilizes several publicly available Python packages that are commonly used for scientific computing ([NumPy](https://numpy.org/) and [SciPy](https://www.scipy.org/)) and machine learning ([scikit-learn](https://scikit-learn.org/)).
 
 ## Installation
 The current development branch of LUQ can be installed from GitHub,  using ``pip``:
@@ -26,7 +26,12 @@ These are used to instantiate the LUQ object:
     learn = LUQ(predicted_time_series, observed_time_series, times)
     
 ### Cleaning data (approximating dynamics)
-Next, the data is cleaned
+Next, the data is cleaned.
+We fit piecewise linear splines with both adaptive numbers of knots and adaptive knot placement to approximate underlying dynamical responses.
+It is then possible to approximate the underlying dynamical response to arbitrary pointwise accuracy if both a sufficiently high frequency for collecting data and number of knots are used.
+The splines are then evaluated at (possibly) new time values, resulting in "cleaned" data.
+
+In LUQ, this is done by:
 
     learn.clean_data(time_start_idx=time_start_idx, time_end_idx=time_end_idx,
                      num_clean_obs=num_clean_obs, tol=tol, min_knots=min_knots, 
@@ -36,6 +41,18 @@ where `time_start_idx` is the index of the beginning of the time window, `time_e
 
 ### Clustering and classifying data (learning and classifying dynamics)
 Next, we learn and classify the dynamics.
+The first goal is to use (cleaned) predicted data to classify the dynamical behavior of (cleaned) observed data.
+In other words, we use the predicted data as a training set to learn the types of dynamical responses that may appear in the system.
+This requires labeling the dynamics present in the predicted data set.
+Clustering algorithms are a useful type of unsupervised learning algorithm that label data vectors using a metric to gauge the distance of a vector from the proposed "center" of the cluster.
+In LUQ, clustering methods from scikit-learn with specified parameters are used to define a clustering of predicted data.
+
+A classifier is a type of supervised learning algorithm that uses labeled training data to tune the various parameters so that non-labeled observed data can be properly labeled (i.e., classified).
+At a high-level, classifiers usually partition the training data into two subsets of data: one used to tune the parameters and the other to test the quality of the tuned parameters by tracking the rate of misclassification.
+This is referred to as cross-validation and is also useful in avoiding over-fitting the classifier (i.e., over-tuning the classifier parameters) to the entire set of training data.
+In LUQ, after the data is clustered, a classifier is chosen which results in the lowest misclassification rate based on k-fold cross validation.
+
+In LUQ this is implemented by:
 
     learn.dynamics(cluster_method='kmeans',
                    kwargs={'n_clusters': 3, 'n_init': 10},
