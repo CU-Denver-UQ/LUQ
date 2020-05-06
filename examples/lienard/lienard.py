@@ -1,8 +1,8 @@
 # Copyright 2019 Steven Mattis and Troy Butler
 
 import numpy as np
-import dynamical_systems as ds
 from luq import *
+import luq.dynamical_systems as ds
 
 # Uniformly sample the parameter samples to form a "prediction" or "test" set
 num_samples = int(500)
@@ -55,7 +55,7 @@ if with_noise:
 # plt.show()
 
 # Use LUQ to learn dynamics and QoIs
-learn = LUQ(predicted_time_series, observed_time_series, times)
+learn = luq.LUQ(predicted_time_series, observed_time_series, times)
 
 # time array indices over which to use
 time_start_idx = 350
