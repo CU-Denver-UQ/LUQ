@@ -13,3 +13,6 @@ Another option is to clone the repository and install LUQ using
 
 ## Dependencies
 LUQ is tested on Python 3.6 and depends on scikit-learn, NumPy, SciPy, and matplotlib (see ``requirements.txt`` for version information).
+
+## License
+[GNU Lesser General Public License (LGPL)](https://github.com/CU-Denver-UQ/LUQ/LICENSE.txt)
