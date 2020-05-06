@@ -12,7 +12,7 @@ Another option is to clone the repository and install LUQ using
 ``python setup.py install``
 
 ## Dependencies
-LUQ is tested on Python 3.6 and depends on scikit-learn, NumPy, SciPy, and matplotlib (see ``requirements.txt`` for version information).
+LUQ is tested on Python 3.6 (but should work on most recent Python 3 versions) and depends on scikit-learn, NumPy, SciPy, and matplotlib (see ``requirements.txt`` for version information).
 
 ## License
 [GNU Lesser General Public License (LGPL)](https://github.com/CU-Denver-UQ/LUQ/LICENSE.txt)
@@ -58,7 +58,7 @@ In LUQ this is implemented by:
                    kwargs={'n_clusters': 3, 'n_init': 10},
                    proposals = ({'kernel': 'linear'}, {'kernel': 'rbf'}, {'kernel': 'poly'}, {'kernel': 'sigmoid'}),
                    k = 10)
-where `cluster_method` defines the type of clustering algorithm to use, `kwargs` is a dictionary of arguments for the clustering algorithm, `proposals` is an array of dictionaries of proposed arguments for ``sklearn.svm.SVC``, and `k` is the k for the k-fold cross-validation.
+where `cluster_method` defines the type of clustering algorithm to use, `kwargs` is a dictionary of arguments for the clustering algorithm, `proposals` is an array of dictionaries of proposed arguments for [``sklearn.svm.SVC``](https://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html), and `k` is the k for the k-fold cross-validation.
 
 ### Feature extraction (learning quantities of interest)
 Finally, the best kernel PCAs are calculated for each cluster and the transformed predictions and observations are computed.
@@ -74,11 +74,11 @@ or a proportion of variance explained by the minimum number of components can be
                                                           proposals=({'kernel': 'linear'}, {'kernel': 'rbf'},
                                                                      {'kernel': 'sigmoid'}, {'kernel': 'cosine'}))
                                                                      
-where `proposals` contains dictionaries of proposed kernel parameters.
+where `proposals` contains dictionaries of proposed [kernel parameters](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.KernelPCA.html#sklearn.decomposition.KernelPCA).
 
 ## Examples
 Several documented examples can be found in the examples directory, including time series data from:
-* A Dampled Harmonic Oscillator
+* A Damped Harmonic Oscillator
 * ODE systems with Hopf Bifurcations (Sel'kov Model and Lienard Equations)
 * Burgers Equation resulting in shock solutions
 
