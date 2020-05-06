@@ -76,4 +76,9 @@ or a proportion of variance explained by the minimum number of components can be
                                                                      
 where `proposals` contains dictionaries of proposed kernel parameters.
 
+## Examples
+Several documented examples can be found in the examples directory, including time series data from:
+* A Dampled Harmonic Oscillator
+* ODE systems with Hopf Bifurcations (Sel'kov Model and Lienard Equations)
+* Burgers Equation resulting in shock solutions
 
