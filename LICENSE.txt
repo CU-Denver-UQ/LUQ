@@ -4,7 +4,7 @@ License
 
 LUQ is distributed under the GNU Lesser General Public License, Version 2.1
 
-Copyright (c) 2019-2010 Steven Mattis and Troy Butler
+Copyright (c) 2019-2020 Steven Mattis and Troy Butler
 All rights reserved.
 
 
