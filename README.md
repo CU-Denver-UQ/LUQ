@@ -78,7 +78,7 @@ where `proposals` contains dictionaries of proposed [kernel parameters](https://
 
 ## Examples
 Several documented examples can be found in the examples directory, including time series data from:
-* A Damped Harmonic Oscillator
-* ODE systems with Hopf Bifurcations (Sel'kov Model and Lienard Equations)
-* Burgers Equation resulting in shock solutions
+* [A Damped Harmonic Oscillator](https://github.com/CU-Denver-UQ/LUQ/blob/master/examples/harmonic-oscillator/harmonic_oscillator.py)
+* ODE systems with Hopf Bifurcations ([Sel'kov Model](https://github.com/CU-Denver-UQ/LUQ/blob/master/examples/selkov/selkov.py) and [Lienard Equations](https://github.com/CU-Denver-UQ/LUQ/blob/master/examples/lienard/lienard.py))
+* [Burgers Equation](https://github.com/CU-Denver-UQ/LUQ/blob/master/examples/shock/burgers_shock.py) resulting in shock solutions
 
