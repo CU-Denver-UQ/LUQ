@@ -12,4 +12,3 @@ setup(name='luq',
       install_requires=['matplotlib', 'scipy',
                         'numpy', 'scikit-learn']
       )
-

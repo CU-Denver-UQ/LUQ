@@ -57,7 +57,8 @@ def burgers(params):
             elif xc[i] > (3.25 + a):
                 state.q[0, i] = fr
             else:
-                state.q[0, i] = 0.5 * ((fl + fr) - (fl - fr) * (xc[i] - 3.25) / a)
+                state.q[0, i] = 0.5 * \
+                    ((fl + fr) - (fl - fr) * (xc[i] - 3.25) / a)
 
         # Set gauge
         grid = state.grid
@@ -116,9 +117,8 @@ np.savetxt('burgers_files_v2/beta_times_5_2.txt', times_obs)
 np.savetxt('burgers_files_v2/beta_series_5_2.txt', time_series_obs)
 
 #fig = plt.figure()
-#for i in range(params.shape[0]):
+# for i in range(params.shape[0]):
 #    plt.plot(times, time_series[i, :])
-#plt.show()
+# plt.show()
 #import pdb
-#pdb.set_trace()
-
+# pdb.set_trace()

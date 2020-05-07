@@ -17,6 +17,7 @@ The initial condition is sinusoidal, but after a short time a shock forms
 (due to the nonlinearity).
 """
 from __future__ import absolute_import
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.io as sio
 from clawpack import riemann
@@ -32,8 +33,8 @@ solver.kernel_language = 'Python'
 
 fl = 1.5
 fr = 1.0
-solver.bc_lower[0] = pyclaw.BC.extrap #pyclaw.BC.periodic
-solver.bc_upper[0] = pyclaw.BC.extrap  #pyclaw.BC.periodic
+solver.bc_lower[0] = pyclaw.BC.extrap  # pyclaw.BC.periodic
+solver.bc_upper[0] = pyclaw.BC.extrap  # pyclaw.BC.periodic
 
 x = pyclaw.Dimension(0.0, 10.0, 500, name='x')
 domain = pyclaw.Domain(x)
@@ -51,7 +52,7 @@ for i in range(state.q.shape[1]):
     elif xc[i] > (0.25 + 2.0 * a):
         state.q[0, i] = fr
     else:
-        state.q[0, i] = 0.5 * ((fl + fr) - (fl - fr) * (xc[i] - 0.25 - a)/a)
+        state.q[0, i] = 0.5 * ((fl + fr) - (fl - fr) * (xc[i] - 0.25 - a) / a)
 
 state.problem_data['efix'] = True
 
@@ -81,7 +82,6 @@ for i in range(A.shape[0]):
         output.append(A[i, 1])
         idx += 1
 output = np.array(output)
-import matplotlib.pyplot as plt
 #plt.plot(A[:, 0], A[:, 1])
 plt.plot(times, output)
 plt.show()

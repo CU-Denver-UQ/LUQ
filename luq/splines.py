@@ -5,7 +5,13 @@ import numpy as np
 # Methods for finding optimal splines for cleaning data.
 
 
-def linear_c0_spline(times, data, num_knots, clean_times, spline_old=None, verbose=False):
+def linear_c0_spline(
+        times,
+        data,
+        num_knots,
+        clean_times,
+        spline_old=None,
+        verbose=False):
     """
     Clean a time series over window with C0 linear splines.
     :param times: time series over window
@@ -37,46 +43,43 @@ def linear_c0_spline(times, data, num_knots, clean_times, spline_old=None, verbo
         knots = np.insert(knots, 0, 0)
         knots = np.append(knots, 1)
         return np.interp(x, knots, Qs)
-    
+
     def piecewise_linear_clean(x, knots, Qs):
         knots = np.insert(knots, 0, times[0])
         knots = np.append(knots, times[-1])
         return np.interp(x, knots, Qs)
-    
+
     if spline_old is None:
         vals_init = np.zeros((num_knots,))
     else:
         vals_init = piecewise_linear_clean(np.linspace(0, 1, num_knots),
-                               spline_old[num_knots-1:],
-                               spline_old[0:num_knots-1])
+                                           spline_old[num_knots - 1:],
+                                           spline_old[0:num_knots - 1])
 
-    param_bounds = np.zeros((2, 2*num_knots-2))
-    for i in range(2*num_knots-2):
+    param_bounds = np.zeros((2, 2 * num_knots - 2))
+    for i in range(2 * num_knots - 2):
         if i < num_knots:
             param_bounds[:, i] = [-np.inf, np.inf]
         else:
             param_bounds[:, i] = [0, 1]
 
     knots_unif = np.linspace(0, 1, num_knots)[1:-1]
-    q_pl_unif, _ = optimize.curve_fit(lambda x, *params_0: wrapper_fit_func_qs(x, knots_unif, params_0),
-                                 (times - times[0]) / (times[-1] - times[0]),
-                                 data,
-                                 p0=vals_init)
+    q_pl_unif, _ = optimize.curve_fit(lambda x, *params_0: wrapper_fit_func_qs(
+        x, knots_unif, params_0), (times - times[0]) / (times[-1] - times[0]), data, p0=vals_init)
     q_pl_unif = np.hstack([q_pl_unif, knots_unif])
     q_pl_unif[num_knots:] *= (times[-1] - times[0])
     q_pl_unif[num_knots:] += times[0]
 
-    clean_data_at_original_unif = piecewise_linear_clean(times,
-                                                         q_pl_unif[num_knots:],
-                                                         q_pl_unif[0:num_knots])
+    clean_data_at_original_unif = piecewise_linear_clean(
+        times, q_pl_unif[num_knots:], q_pl_unif[0:num_knots])
     ssr_unif = np.sum((data - clean_data_at_original_unif)**2)
-     
+
     # find piecewise linear splines for predictions
     opt_fail = False
     try:
         knots_init = np.linspace(0, 1, num_knots)[1:-1]
         q_pl, _ = optimize.curve_fit(lambda x, *params_0: wrapper_fit_func(x, num_knots, params_0),
-                                     (times-times[0])/(times[-1]-times[0]),
+                                     (times - times[0]) / (times[-1] - times[0]),
                                      data,
                                      p0=np.hstack([q_pl_unif[0:num_knots], knots_init]),
                                      bounds=param_bounds,
@@ -90,8 +93,8 @@ def linear_c0_spline(times, data, num_knots, clean_times, spline_old=None, verbo
         q_pl[num_knots:] = q_pl[inds_sort + num_knots]  # knots
 
         clean_data_at_original = piecewise_linear_clean(times,
-                                                             q_pl[num_knots:],
-                                                             q_pl[0:num_knots])
+                                                        q_pl[num_knots:],
+                                                        q_pl[0:num_knots])
         ssr = np.sum((data - clean_data_at_original) ** 2)
 
     except RuntimeError:
@@ -112,7 +115,3 @@ def linear_c0_spline(times, data, num_knots, clean_times, spline_old=None, verbo
     error = np.average(np.abs(clean_data_at_original - data))
     error = error / np.average(np.abs(data))
     return clean_data, error, q_pl
-
-
-
-

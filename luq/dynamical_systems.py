@@ -7,6 +7,7 @@ class IVPBase:
     """
     Base class for initial value problems.
     """
+
     def __init__(self):
         self.num_params = None
         self.num_equations = None
@@ -112,8 +113,10 @@ class HarmonicOscillator(IVPBase):
                                                             + C_2 * np.sin(omega * t))
 
             if ind_over.size > 0:
-                r_1 = -c[ind_over] - np.sqrt(c[ind_over] ** 2 - omega_0[ind_over] ** 2)
-                r_2 = -c[ind_over] + np.sqrt(c[ind_over] ** 2 - omega_0[ind_over] ** 2)
+                r_1 = -c[ind_over] - \
+                    np.sqrt(c[ind_over] ** 2 - omega_0[ind_over] ** 2)
+                r_2 = -c[ind_over] + \
+                    np.sqrt(c[ind_over] ** 2 - omega_0[ind_over] ** 2)
                 C_1 = (b[ind_over] - a[ind_over] * r_2) / (r_1 - r_2)
                 C_2 = (b[ind_over] - r_1 * a[ind_over]) / (r_2 - r_1)
 
@@ -126,7 +129,8 @@ class HarmonicOscillator(IVPBase):
         time_series = np.zeros((n, len(t_eval)))
 
         for i, t in enumerate(t_eval):
-            time_series[:, i] = y(t, params[:, 0], params[:, 1], ics[:, 0], ics[:, 1])
+            time_series[:, i] = y(
+                t, params[:, 0], params[:, 1], ics[:, 0], ics[:, 1])
         return time_series
 
 
@@ -134,6 +138,7 @@ class ODE(IVPBase):
     """
     Base class for Ordinary Differential Equations to solved numerically.
     """
+
     def __init__(self):
         super().__init__()
         self.f = None
@@ -177,7 +182,7 @@ class ODE(IVPBase):
                                 y0=ics[i, :],
                                 t_eval=t_eval,
                                 **kwargs)
-            if sol.success != True:
+            if not sol.success:
                 import pdb
                 pdb.set_trace()
             time_series[i, :] = sol.y[idx, :]
@@ -191,6 +196,7 @@ class Lienard(ODE):
     $$v' = -u + (\mu - u^2) v,$$
     which has a Hopf bifurcation at $\mu = 0$.
     """
+
     def __init__(self):
         super().__init__()
         self.num_equations = 2
@@ -198,14 +204,15 @@ class Lienard(ODE):
 
     def define_f(self, param):
         def f(t, y):
-            return [y[1], -y[0] + (param[0] - y[0]*y[0]) * y[1]]
+            return [y[1], -y[0] + (param[0] - y[0] * y[0]) * y[1]]
         return f
 
     def define_jacobian(self, param):
         self.jacobian = True
 
         def jacobian(t, y):
-            return [[0.0, 1.0], [-1.0-2.0*y[0]*y[1], param[0] - y[0]*y[0]]]
+            return [[0.0, 1.0], [-1.0 - 2.0 * y[0]
+                                 * y[1], param[0] - y[0] * y[0]]]
         return jacobian
 
 
@@ -214,6 +221,7 @@ class Selkov(ODE):
     Sel'kov ODE system for glycolysis. Has potential Hopf bifurcations. See:
     https://www.math.colostate.edu/~shipman/47/volume3b2011/M640_MunozAlicea.pdf
     """
+
     def __init__(self):
         super().__init__()
         self.num_equations = 2
@@ -224,8 +232,8 @@ class Selkov(ODE):
             a = param[0]
             b = param[1]
             c = b / (a + b**2)
-            f1 = -(y[0] + b) + a*(y[1] + c) + (y[0] + b)**2*(y[1] + c)
-            f2 = b - a*(y[1] + c) - (y[0] + b)**2*(y[1] + c)
+            f1 = -(y[0] + b) + a * (y[1] + c) + (y[0] + b)**2 * (y[1] + c)
+            f2 = b - a * (y[1] + c) - (y[0] + b)**2 * (y[1] + c)
             return [f1, f2]
         return f
 
@@ -243,10 +251,12 @@ class Selkov(ODE):
             return [[j11, j12], [j21, j22]]
         return jacobian
 
+
 class Lorenz(ODE):
     """
     The Lorenz system. See https://en.wikipedia.org/wiki/Lorenz_system.
     """
+
     def __init__(self):
         super().__init__()
         self.num_equations = 3
@@ -276,13 +286,3 @@ class Lorenz(ODE):
             j3 = [0.0, -y[0], -beta]
             return [j1, j2, j3]
         return jacobian
-
-
-
-
-
-
-
-
-
-

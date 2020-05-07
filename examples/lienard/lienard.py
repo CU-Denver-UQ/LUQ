@@ -1,5 +1,6 @@
 # Copyright 2019 Steven Mattis and Troy Butler
 
+import matplotlib.pyplot as plt
 import numpy as np
 from luq import *
 import luq.dynamical_systems as ds
@@ -15,7 +16,8 @@ params = params - 0.5
 
 # Construct the predicted time series data
 
-num_time_preds = int(500)  # number of predictions (uniformly space) between [time_start,time_end]
+# number of predictions (uniformly space) between [time_start,time_end]
+num_time_preds = int(500)
 time_start = 0.5
 time_end = 40.0
 times = np.linspace(time_start, time_end, num_time_preds)
@@ -64,9 +66,12 @@ time_end_idx = 499
 # Clean data
 learn.clean_data(time_start_idx=time_start_idx, time_end_idx=time_end_idx,
                  num_clean_obs=50, tol=3.0e-2, min_knots=15, max_knots=40)
-learn.dynamics(cluster_method='spectral', kwargs={'n_clusters': 2, 'n_init': 10})
+learn.dynamics(
+    cluster_method='spectral',
+    kwargs={
+        'n_clusters': 2,
+        'n_init': 10})
 
-import matplotlib.pyplot as plt
 
 for j in range(learn.num_clusters):
     plt.figure()
@@ -79,9 +84,7 @@ for j in range(learn.num_clusters):
             else:
                 pos += 1
             plt.plot(times, predicted_time_series[i, :])
-    print(pos/(pos+neg), 'positive nu ratio for cluster', j)
+    print(pos / (pos + neg), 'positive nu ratio for cluster', j)
     plt.show()
 
 learn.learn_qois_and_transform()
-
-
