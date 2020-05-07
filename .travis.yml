@@ -1,0 +1,36 @@
+dist: xenial
+language: python
+
+python:
+    - "3.6"
+
+services:
+  - xvfb
+
+before_install:
+  - "export DISPLAY=:99.0"
+  - sudo apt-get install gfortran libblas-dev liblapack-dev
+
+install:
+  - pip install codecov pytest pytest-cov
+  - pip install .
+
+script:
+  - pytest --cov=./luq/ ./tests/
+
+# notification settings
+notifications:
+    email:
+        recipients:
+            - steve.a.mattis@gmail.com
+        on_success: change
+        on_failure: always
+
+# whitelist
+branches:
+    only:
+        - master
+
+# Push the results back to codecov
+after_success:
+  - codecov
