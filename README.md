@@ -15,7 +15,7 @@ Another option is to clone the repository and install LUQ using
 LUQ is tested on Python 3.6 (but should work on most recent Python 3 versions) and depends on scikit-learn, NumPy, SciPy, and matplotlib (see ``requirements.txt`` for version information).
 
 ## License
-[GNU Lesser General Public License (LGPL)](https://github.com/CU-Denver-UQ/LUQ/LICENSE.txt)
+[GNU Lesser General Public License (LGPL)](https://github.com/CU-Denver-UQ/LUQ/blob/master/LICENSE.txt)
 
 ## End-to-End Workflow
 The workflow for using LUQ is designed to be as straightforward and simple as possible.
