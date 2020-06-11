@@ -1,6 +1,7 @@
 # LUQ: Learning Uncertain Quantities
 
-[![Build Status](https://travis-ci.org/CU-Denver-UQ/LUQ.svg?branch=master)](https://travis-ci.org/CU-Denver-UQ/LUQ)
+[![Build Status](https://travis-ci.org/CU-Denver-UQ/LUQ.svg?branch=master)](https://travis-ci.org/CU-Denver-UQ/LUQ) [![DOI](https://zenodo.org/badge/218807243.svg)](https://zenodo.org/badge/latestdoi/218807243)
+
 
 LUQ is a Python package that provides simple implementations of the algorithms for learning uncertain quantities.
 The package provides a simple end-to-end workflow going from raw time series data to low-dimensional quantites of interest which can be used for data-consistent inversion.
