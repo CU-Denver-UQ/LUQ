@@ -12,11 +12,11 @@ before_install:
   - sudo apt-get install gfortran libblas-dev liblapack-dev
 
 install:
-  - pip install codecov pytest pytest-cov
   - pip install .
+  - pip install pytest
 
 script:
-  - pytest --cov=./luq/ ./tests/
+  - pytest ./tests/
 
 # notification settings
 notifications:
@@ -30,7 +30,3 @@ notifications:
 branches:
     only:
         - master
-
-# Push the results back to codecov
-after_success:
-  - codecov
