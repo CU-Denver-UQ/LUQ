@@ -100,9 +100,9 @@ learn = LUQ(predicted_time_series, observed_time_series, times)
 time_start_idx = 0
 time_end_idx = len(times) - 1  # 150 #120
 
-# Clean data
-learn.clean_data(time_start_idx=time_start_idx, time_end_idx=time_end_idx,
-                 num_clean_obs=20, tol=5.0e-2, min_knots=3, max_knots=12)
+# Filter data
+learn.filter_data(time_start_idx=time_start_idx, time_end_idx=time_end_idx,
+                 num_filtered_obs=20, tol=5.0e-2, min_knots=3, max_knots=12)
 
 
 # Learn and classify dynamics
@@ -127,8 +127,8 @@ for i, c in zip(chosen_obs, colors):
 for i in chosen_obs:
     num_i_knots = int(0.5 * (2 + len(learn.obs_knots[i])))
     knots = np.copy(learn.obs_knots[i][num_i_knots:])
-    knots = np.insert(knots, 0, learn.clean_times[0])
-    knots = np.append(knots, learn.clean_times[-1])
+    knots = np.insert(knots, 0, learn.filtered_times[0])
+    knots = np.append(knots, learn.filtered_times[-1])
     plt.plot(knots,
              learn.obs_knots[i][:num_i_knots],
              'k',
@@ -155,9 +155,8 @@ for i, c in zip(chosen_obs, colors):
              alpha=0.25)
 
 for i in chosen_obs:
-    plt.plot(learn.clean_times,
-             learn.clean_obs[i,
-                             :],
+    plt.plot(learn.filtered_times,
+             learn.filtered_obs[i, :],
              'k',
              linestyle='none',
              marker='s',
@@ -165,38 +164,37 @@ for i in chosen_obs:
 
 plt.xlabel('$t$')
 plt.ylabel('$x(t)$')
-plt.title('Generating Clean Data')
+plt.title('Generating Filtered Data')
 plt.show()
 
 # # Plot clusters of predicted time series
-num_clean_obs = learn.clean_times.shape[0]
+num_filtered_obs = learn.filtered_times.shape[0]
 for j in range(learn.num_clusters):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(
         24, 8), gridspec_kw={'width_ratios': [1, 1]})
     ax1.scatter(
         np.tile(
-            learn.clean_times,
+            learn.filtered_times,
             num_samples).reshape(
             num_samples,
-            num_clean_obs),
-        learn.clean_predictions,
+            num_filtered_obs),
+        learn.filtered_predictions,
         50,
         c='gray',
         marker='.',
         alpha=0.2)
     idx = np.where(learn.predict_labels == j)[0]
-    ax1.scatter(np.tile(learn.clean_times,
+    ax1.scatter(np.tile(learn.filtered_times,
                         len(idx)).reshape(len(idx),
-                                          num_clean_obs),
-                learn.clean_predictions[idx,
-                                        :],
+                                          num_filtered_obs),
+                learn.filtered_predictions[idx, :],
                 50,
                 c='b',
                 marker='o',
                 alpha=0.2)
     idx2 = np.where(learn.obs_labels == j)[0]
-    ax1.scatter(np.tile(learn.clean_times, len(idx2)).reshape(len(idx2), num_clean_obs),
-                learn.clean_obs[idx2, :], 50, c='r', marker='s', alpha=0.2)
+    ax1.scatter(np.tile(learn.filtered_times, len(idx2)).reshape(len(idx2), num_filtered_obs),
+                learn.filtered_obs[idx2, :], 50, c='r', marker='s', alpha=0.2)
     ax1.set(title='Cluster ' + str(j + 1) + ' in data')
     ax1.set_xlabel('$t$')
     ax1.set_ylabel('$x(t)$')
@@ -221,29 +219,29 @@ for j in range(learn.num_clusters):
     fig = plt.figure(figsize=(10, 8))
     plt.scatter(
         np.tile(
-            learn.clean_times,
+            learn.filtered_times,
             num_samples).reshape(
             num_samples,
-            num_clean_obs),
-        learn.clean_predictions,
+            num_filtered_obs),
+        learn.filtered_predictions,
         10,
         c='gray',
         marker='.',
         alpha=0.2)
     idx = np.where(learn.predict_labels == j)[0]
-    plt.scatter(np.tile(learn.clean_times,
+    plt.scatter(np.tile(learn.filtered_times,
                         len(idx)).reshape(len(idx),
-                                          num_clean_obs),
-                learn.clean_predictions[idx,
+                                          num_filtered_obs),
+                learn.filtered_predictions[idx,
                                         :],
                 20,
                 c='b',
                 marker='o',
                 alpha=0.3)
     idx = np.where(learn.obs_labels == j)[0]
-    plt.scatter(np.tile(learn.clean_times, len(idx)).reshape(len(idx), num_clean_obs),
-                learn.clean_obs[idx, :], 50, c='r', marker='s', alpha=0.2)
-    plt.title('Classifying cleaned observations')
+    plt.scatter(np.tile(learn.filtered_times, len(idx)).reshape(len(idx), num_filtered_obs),
+                learn.filtered_obs[idx, :], 50, c='r', marker='s', alpha=0.2)
+    plt.title('Classifying filtered observations')
     plt.xlabel('$t$')
     plt.ylabel('$x(t)$')
     bottom, top = plt.gca().get_ylim()
