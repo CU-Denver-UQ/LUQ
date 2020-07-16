@@ -7,7 +7,7 @@ from luq.splines import *
 class LUQ(object):
     """
     Learning Uncertain Quantities:
-    Takes in observed and predicted time series data, cleans the data, identifies dynamics and
+    Takes in observed and predicted time series data, filters the data, identifies dynamics and
     low-dimensional structures, and transforms the data.
     """
 
@@ -31,6 +31,9 @@ class LUQ(object):
         self.clean_times = None
         self.clean_predictions = None
         self.clean_obs = None
+        self.filtered_times = self.clean_times
+        self.filtered_obs = self.clean_obs
+        self.filtered_predictions = self.clean_predictions
         self.num_clusters = None
         self.cluster_labels = None
         self.predict_labels = None
@@ -59,6 +62,44 @@ class LUQ(object):
                      'kpca_kernel': None,
                      'num_principal_components': None}
 
+    def filter_data(
+            self,
+            time_start_idx,
+            time_end_idx,
+            num_filtered_obs,
+            tol,
+            min_knots=3,
+            max_knots=100,
+            verbose=False):
+        """
+        Filter observed and predicted time series data so that difference between iterations is within tolerance.
+        :param time_start_idx: first time index to filter
+        :type time_start_idx: int
+        :param time_end_idx: last time index to filter
+        :type time_end_idx: int
+        :param num_filtered_obs: number of filtered observations to make
+        :type num_filtered_obs: int
+        :param tol: tolerance for constructing splines
+        :type tol: float
+        :param min_knots: maximum number of knots allowed
+        :type min_knots: int
+        :param max_knots: minimum number of knots allowed
+        :type max_knots: int
+        :param verbose: display termination reports
+        :type verbose: bool
+        :return: arrays of filtered predictions, filtered observations, and filtered times
+        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
+        """
+        self.filtered_predictions, self.filtered_obs, self.filtered_times = \
+            self.clean_data(time_start_idx=time_start_idx,
+                            time_end_idx=time_end_idx,
+                            num_clean_obs=num_filtered_obs,
+                            tol=tol,
+                            min_knots=min_knots,
+                            max_knots=max_knots,
+                            verbose=verbose)
+        return self.filtered_predictions, self.filtered_obs, self.filtered_times
+
     def clean_data(
             self,
             time_start_idx,
@@ -69,12 +110,12 @@ class LUQ(object):
             max_knots=100,
             verbose=False):
         """
-        Clean observed and predicted time series data so that difference between iterations is within tolerance.
-        :param time_start_idx: first time index to clean
+        Filter observed and predicted time series data so that difference between iterations is within tolerance.
+        :param time_start_idx: first time index to filter
         :type time_start_idx: int
-        :param time_end_idx: last time index to clean
+        :param time_end_idx: last time index to filter
         :type time_end_idx: int
-        :param num_clean_obs: number of clean observations to make
+        :param num_clean_obs: number of filtered observations to make
         :type num_clean_obs: int
         :param tol: tolerance for constructing splines
         :type tol: float
@@ -84,7 +125,7 @@ class LUQ(object):
         :type max_knots: int
         :param verbose: display termination reports
         :type verbose: bool
-        :return: arrays of clean predictions, clean observations, and clean times
+        :return: arrays of filtered predictions, filtered observations, and filtered times
         :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
         """
 
@@ -171,6 +212,44 @@ class LUQ(object):
         self.clean_times = clean_times
         return self.clean_predictions, self.clean_obs, self.clean_times
 
+    def filter_data_tol(
+            self,
+            time_start_idx,
+            time_end_idx,
+            num_filtered_obs,
+            tol,
+            min_knots=3,
+            max_knots=100,
+            verbose=False):
+        """
+        Filter observed and predicted time series data so that the mean l1 error is within a tolerance.
+        :param time_start_idx: first time index to filter
+        :type time_start_idx: int
+        :param time_end_idx: last time index to filter
+        :type time_end_idx: int
+        :param num_filtered_obs: number of filtered observations to make
+        :type num_filtered_obs: int
+        :param tol: tolerance for constructing splines
+        :type tol: float
+        :param min_knots: maximum number of knots allowed
+        :type min_knots: int
+        :param max_knots: minimum number of knots allowed
+        :type max_knots: int
+        :param verbose: display termination reports
+        :type verbose: bool
+        :return: arrays of filtered predictions, filtered observations, and filtered times
+        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
+        """
+        self.filtered_predictions, self.filtered_obs, self.filtered_times = \
+            self.clean_data_tol(time_start_idx=time_start_idx,
+                                time_end_idx=time_end_idx,
+                                num_clean_obs=num_filtered_obs,
+                                tol=tol,
+                                min_knots=min_knots,
+                                max_knots=max_knots,
+                                verbose=verbose)
+        return self.filtered_predictions, self.filtered_obs, self.filtered_times
+
     def clean_data_tol(
             self,
             time_start_idx,
@@ -181,12 +260,12 @@ class LUQ(object):
             max_knots=100,
             verbose=False):
         """
-        Clean observed and predicted time series data so that the mean l1 error is within a tolerance.
-        :param time_start_idx: first time index to clean
+        Filter observed and predicted time series data so that the mean l1 error is within a tolerance.
+        :param time_start_idx: first time index to filter
         :type time_start_idx: int
-        :param time_end_idx: last time index to clean
+        :param time_end_idx: last time index to filter
         :type time_end_idx: int
-        :param num_clean_obs: number of clean observations to make
+        :param num_clean_obs: number of filtered observations to make
         :type num_clean_obs: int
         :param tol: tolerance for constructing splines
         :type tol: float
@@ -196,7 +275,7 @@ class LUQ(object):
         :type max_knots: int
         :param verbose: display termination reports
         :type verbose: bool
-        :return: arrays of clean predictions, clean observations, and clean times
+        :return: arrays of filtered predictions, filtered observations, and filtered times
         :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
         """
 

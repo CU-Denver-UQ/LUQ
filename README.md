@@ -29,23 +29,23 @@ These are used to instantiate the LUQ object:
     from luq import LUQ
     learn = LUQ(predicted_time_series, observed_time_series, times)
     
-### Cleaning data (approximating dynamics)
-Next, the data is cleaned.
+### Filtering data (approximating dynamics)
+Next, the data is filtered.
 We fit piecewise linear splines with both adaptive numbers of knots and adaptive knot placement to approximate underlying dynamical responses.
 It is then possible to approximate the underlying dynamical response to arbitrary pointwise accuracy if both a sufficiently high frequency for collecting data and number of knots are used.
-The splines are then evaluated at (possibly) new time values, resulting in "cleaned" data.
+The splines are then evaluated at (possibly) new time values, resulting in "filtered" data.
 
 In LUQ, this is done by:
 
-    learn.clean_data(time_start_idx=time_start_idx, time_end_idx=time_end_idx,
-                     num_clean_obs=num_clean_obs, tol=tol, min_knots=min_knots, 
+    learn.filter_data(time_start_idx=time_start_idx, time_end_idx=time_end_idx,
+                     num_filtered_obs=num_filtered_obs, tol=tol, min_knots=min_knots, 
                      max_knots=max_knots)
                      
-where `time_start_idx` is the index of the beginning of the time window, `time_end_idx` is the index of the end of the time window, `num_clean_obs` is the number of uniformly spaced clean observations to take, `tol`, `min_knots`, and `max_knots` are the tolerance, minimum, and maximum number of knots.
+where `time_start_idx` is the index of the beginning of the time window, `time_end_idx` is the index of the end of the time window, `num_filtered_obs` is the number of uniformly spaced filtered observations to take, `tol`, `min_knots`, and `max_knots` are the tolerance, minimum, and maximum number of knots.
 
 ### Clustering and classifying data (learning and classifying dynamics)
 Next, we learn and classify the dynamics.
-The first goal is to use (cleaned) predicted data to classify the dynamical behavior of (cleaned) observed data.
+The first goal is to use (filtered) predicted data to classify the dynamical behavior of (filtered) observed data.
 In other words, we use the predicted data as a training set to learn the types of dynamical responses that may appear in the system.
 This requires labeling the dynamics present in the predicted data set.
 Clustering algorithms are a useful type of unsupervised learning algorithm that label data vectors using a metric to gauge the distance of a vector from the proposed "center" of the cluster.
