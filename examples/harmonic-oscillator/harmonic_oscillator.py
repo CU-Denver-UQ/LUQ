@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde as GKDE
 from scipy.stats import beta
-import scipy.integrate.quadrature as quad
+from scipy.integrate import quadrature as quad
 from luq.luq import *
 from luq.dynamical_systems import HarmonicOscillator
 

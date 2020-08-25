@@ -3,7 +3,7 @@
 # Copyright 2019-2020 Steven Mattis and Troy Butler
 
 import matplotlib.pyplot as plt
-import scipy.integrate.quadrature as quad
+from scipy.integrate import quadrature as quad
 from scipy.stats import gaussian_kde as GKDE
 from luq.luq import *
 from scipy.stats import beta
