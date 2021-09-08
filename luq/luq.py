@@ -590,6 +590,7 @@ class LUQ(object):
                 self.predicted_time_series.shape[0] * [0])
             self.obs_labels = np.array(
                 self.observed_time_series.shape[0] * [0])
+            self.obs_empty_cluster.append(False)
 
         self.kpcas = []
         self.q_predict_kpcas = []
