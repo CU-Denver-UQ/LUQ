@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 setup(name='luq',
-      version='1.0',
+      version='1.1',
       description='Learning Uncertain Quantities',
       author='Steven Mattis',
       author_email='steve.a.mattis@gmail.com',

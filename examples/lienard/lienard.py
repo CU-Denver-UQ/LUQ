@@ -63,9 +63,9 @@ learn = luq.LUQ(predicted_time_series, observed_time_series, times)
 time_start_idx = 350
 time_end_idx = 499
 
-# Clean data
-learn.clean_data(time_start_idx=time_start_idx, time_end_idx=time_end_idx,
-                 num_clean_obs=50, tol=3.0e-2, min_knots=15, max_knots=40)
+# Filter data
+learn.filter_data(time_start_idx=time_start_idx, time_end_idx=time_end_idx,
+                  num_filtered_obs=50, tol=3.0e-2, min_knots=15, max_knots=40)
 learn.dynamics(
     cluster_method='spectral',
     kwargs={
