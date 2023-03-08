@@ -590,7 +590,7 @@ class LUQ(object):
                 self.predicted_time_series.shape[0] * [0])
             self.obs_labels = np.array(
                 self.observed_time_series.shape[0] * [0])
-            self.obs_empty_cluster.append(False)
+            self.obs_empty_cluster = [False]
 
         self.kpcas = []
         self.q_predict_kpcas = []
@@ -748,6 +748,7 @@ class LUQ(object):
         """
         self.obs_labels = self.classifier.predict(self.clean_obs)
         # Mark empty observation clusters
+        self.obs_empty_cluster = []
         for i in range(self.num_clusters):
             if len(np.where(self.obs_labels == i)[0]) == 0:
                 self.obs_empty_cluster.append(True)
