@@ -620,7 +620,7 @@ class LUQ(object):
                         X_kpca = kpca.fit_transform(X_std)
                         X_kpca_local.append(X_kpca)
                         kpcas_local.append(kpca)
-                        eigs = kpca.lambdas_
+                        eigs = kpca.eigenvalues_
                         eigenvalues.append(eigs)
                         eigs = eigs / np.sum(eigs)
                         cum_sum = np.cumsum(eigs)
@@ -690,7 +690,7 @@ class LUQ(object):
                         X_kpca = kpca.fit_transform(X_std)
                         X_kpca_local.append(X_kpca)
                         kpcas_local.append(kpca)
-                        eigs = kpca.lambdas_
+                        eigs = kpca.eigenvalues_
                         eigenvalues.append(eigs)
                         eigs = eigs / np.sum(eigs)
                         cum_sum = np.cumsum(eigs)
