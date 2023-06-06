@@ -2,7 +2,7 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
-from luq import *
+from luq.luq import *
 import luq.dynamical_systems as ds
 
 # Uniformly sample the parameter samples to form a "prediction" or "test" set
@@ -57,7 +57,7 @@ if with_noise:
 # plt.show()
 
 # Use LUQ to learn dynamics and QoIs
-learn = luq.LUQ(predicted_time_series, observed_time_series, times)
+learn = LUQ_time(predicted_time_series, observed_time_series, times)
 
 # time array indices over which to use
 time_start_idx = 350

@@ -2,38 +2,28 @@
 
 import numpy as np
 from luq.splines import *
-
+from luq.rbf_fit import RBFFit
 
 class LUQ(object):
     """
     Learning Uncertain Quantities:
-    Takes in observed and predicted time series data, filters the data, identifies dynamics and
-    low-dimensional structures, and transforms the data.
+    Parent class that utilizes filtered observed and corresponding predicted data to identify dynamics and
+    low-dimensional structures and transforms the data.
     """
 
     def __init__(self,
-                 predicted_time_series,
-                 observed_time_series,
-                 times):
+                 filtered_predictions,
+                 filtered_obs):
         """
-        Initializes objects. All time series arrays should be the same length.
-        :param predicted_time_series: time series from predictions
-        :type predicted_time_series: :class:`numpy.ndarray`
-        :param observed_time_series: time series from observations
-        :type observed_time_series: :class:`numpy.ndarray`
-        :param times: points in time for time series
-        :type times: :class:`numpy.ndarray`
+        Initializes objects. Shapes of filtered_predictions and filtered_obs should each be (n_samples, n_dimensions)
+        :param filtered_predictions: filtered predictions
+        :type filtered_predictions: :class:`numpy.ndarray`
+        :param filtered_obs: filtered observations
+        :type filtered_obs: :class:`numpy.ndarray`
         """
 
-        self.predicted_time_series = predicted_time_series
-        self.observed_time_series = observed_time_series
-        self.times = times
-        self.clean_times = None
-        self.clean_predictions = None
-        self.clean_obs = None
-        self.filtered_times = self.clean_times
-        self.filtered_obs = self.clean_obs
-        self.filtered_predictions = self.clean_predictions
+        self.filtered_predictions = filtered_predictions
+        self.filtered_obs = filtered_obs
         self.num_clusters = None
         self.cluster_labels = None
         self.predict_labels = None
@@ -49,8 +39,6 @@ class LUQ(object):
         self.pi_predict_kdes = []
         self.pi_obs_kdes = []
         self.scalers = []
-        self.predict_knots = []
-        self.obs_knots = []
         self.r = None
 
         # incorporate more into this
@@ -61,286 +49,6 @@ class LUQ(object):
                      'misclassification_rate': None,
                      'kpca_kernel': None,
                      'num_principal_components': None}
-
-    def filter_data(
-            self,
-            time_start_idx,
-            time_end_idx,
-            num_filtered_obs,
-            tol,
-            min_knots=3,
-            max_knots=100,
-            verbose=False):
-        """
-        Filter observed and predicted time series data so that difference between iterations is within tolerance.
-        :param time_start_idx: first time index to filter
-        :type time_start_idx: int
-        :param time_end_idx: last time index to filter
-        :type time_end_idx: int
-        :param num_filtered_obs: number of filtered observations to make
-        :type num_filtered_obs: int
-        :param tol: tolerance for constructing splines
-        :type tol: float
-        :param min_knots: maximum number of knots allowed
-        :type min_knots: int
-        :param max_knots: minimum number of knots allowed
-        :type max_knots: int
-        :param verbose: display termination reports
-        :type verbose: bool
-        :return: arrays of filtered predictions, filtered observations, and filtered times
-        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
-        """
-        self.filtered_predictions, self.filtered_obs, self.filtered_times = \
-            self.clean_data(time_start_idx=time_start_idx,
-                            time_end_idx=time_end_idx,
-                            num_clean_obs=num_filtered_obs,
-                            tol=tol,
-                            min_knots=min_knots,
-                            max_knots=max_knots,
-                            verbose=verbose)
-        return self.filtered_predictions, self.filtered_obs, self.filtered_times
-
-    def clean_data(
-            self,
-            time_start_idx,
-            time_end_idx,
-            num_clean_obs,
-            tol,
-            min_knots=3,
-            max_knots=100,
-            verbose=False):
-        """
-        Filter observed and predicted time series data so that difference between iterations is within tolerance.
-        :param time_start_idx: first time index to filter
-        :type time_start_idx: int
-        :param time_end_idx: last time index to filter
-        :type time_end_idx: int
-        :param num_clean_obs: number of filtered observations to make
-        :type num_clean_obs: int
-        :param tol: tolerance for constructing splines
-        :type tol: float
-        :param min_knots: maximum number of knots allowed
-        :type min_knots: int
-        :param max_knots: minimum number of knots allowed
-        :type max_knots: int
-        :param verbose: display termination reports
-        :type verbose: bool
-        :return: arrays of filtered predictions, filtered observations, and filtered times
-        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
-        """
-
-        # Use _old and _new to compare to tol and determine when to stop adding knots
-        # Compute _old before looping and then i=i+1
-        times = self.times[time_start_idx:time_end_idx + 1]
-        clean_times = np.linspace(
-            self.times[time_start_idx],
-            self.times[time_end_idx],
-            num_clean_obs)
-        num_predictions = self.predicted_time_series.shape[0]
-        num_obs = self.observed_time_series.shape[0]
-        self.clean_predictions = np.zeros((num_predictions, num_clean_obs))
-        self.clean_obs = np.zeros((num_obs, num_clean_obs))
-
-        for idx in range(num_predictions):
-            clean_predictions_old, error_old, q_pl = linear_c0_spline(times=times,
-                                                                      data=self.predicted_time_series[idx,
-                                                                                                      time_start_idx:time_end_idx + 1],
-                                                                      num_knots=min_knots,
-                                                                      clean_times=clean_times,
-                                                                      verbose=verbose)
-            i = min_knots + 1
-            while i <= max_knots:
-                clean_predictions_new, error_new, q_pl = linear_c0_spline(times=times,
-                                                                          data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
-                                                                          num_knots=i,
-                                                                          clean_times=clean_times,
-                                                                          spline_old=q_pl,
-                                                                          verbose=verbose)
-
-                # After an _old and a _new is computed (when i>min_knots)
-                print(idx, i, error_new)
-                diff = np.average(np.abs(clean_predictions_new - clean_predictions_old)) / \
-                    np.average(np.abs(self.predicted_time_series[idx,
-                                                                 time_start_idx:time_end_idx + 1]))
-                if diff < tol:
-                    break
-                else:
-                    i += 1
-                    if i <= max_knots:
-                        clean_predictions_old = clean_predictions_new
-            if i > max_knots:
-                print("Warning: maximum number of knots reached.")
-            else:
-                print(idx, i, "knots being used with error of", error_new)
-            if i > max_knots and error_old < error_new:
-                self.clean_predictions[idx, :] = clean_predictions_old
-            else:
-                self.clean_predictions[idx, :] = clean_predictions_new
-            self.predict_knots.append(q_pl)
-
-        for idx in range(num_obs):
-            clean_obs_old, error_old, q_pl = linear_c0_spline(times=times,
-                                                              data=self.observed_time_series[idx,
-                                                                                             time_start_idx:time_end_idx + 1],
-                                                              num_knots=min_knots,
-                                                              clean_times=clean_times, verbose=verbose)
-            i = min_knots + 1
-            while i <= max_knots:
-                clean_obs_new, error_new, q_pl = linear_c0_spline(times=times,
-                                                                  data=self.observed_time_series[idx, time_start_idx:time_end_idx + 1],
-                                                                  num_knots=i,
-                                                                  clean_times=clean_times,
-                                                                  spline_old=q_pl, verbose=verbose)
-                print(idx, i, error_new)
-                diff = np.average(np.abs(clean_obs_new - clean_obs_old)) / np.average(
-                    np.abs(self.observed_time_series[idx, time_start_idx:time_end_idx + 1]))
-                if diff < tol:
-                    break
-                else:
-                    i += 1
-                    if i <= max_knots:
-                        clean_obs_old = clean_obs_new
-            if i > max_knots:
-                print("Warning: maximum number of knots reached.")
-            else:
-                print(idx, i, "knots being used with error of", error_new)
-            if i > max_knots and error_old < error_new:
-                self.clean_obs[idx, :] = clean_obs_old
-            else:
-                self.clean_obs[idx, :] = clean_obs_new
-            self.obs_knots.append(q_pl)
-        self.clean_times = clean_times
-        return self.clean_predictions, self.clean_obs, self.clean_times
-
-    def filter_data_tol(
-            self,
-            time_start_idx,
-            time_end_idx,
-            num_filtered_obs,
-            tol,
-            min_knots=3,
-            max_knots=100,
-            verbose=False):
-        """
-        Filter observed and predicted time series data so that the mean l1 error is within a tolerance.
-        :param time_start_idx: first time index to filter
-        :type time_start_idx: int
-        :param time_end_idx: last time index to filter
-        :type time_end_idx: int
-        :param num_filtered_obs: number of filtered observations to make
-        :type num_filtered_obs: int
-        :param tol: tolerance for constructing splines
-        :type tol: float
-        :param min_knots: maximum number of knots allowed
-        :type min_knots: int
-        :param max_knots: minimum number of knots allowed
-        :type max_knots: int
-        :param verbose: display termination reports
-        :type verbose: bool
-        :return: arrays of filtered predictions, filtered observations, and filtered times
-        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
-        """
-        self.filtered_predictions, self.filtered_obs, self.filtered_times = \
-            self.clean_data_tol(time_start_idx=time_start_idx,
-                                time_end_idx=time_end_idx,
-                                num_clean_obs=num_filtered_obs,
-                                tol=tol,
-                                min_knots=min_knots,
-                                max_knots=max_knots,
-                                verbose=verbose)
-        return self.filtered_predictions, self.filtered_obs, self.filtered_times
-
-    def clean_data_tol(
-            self,
-            time_start_idx,
-            time_end_idx,
-            num_clean_obs,
-            tol,
-            min_knots=3,
-            max_knots=100,
-            verbose=False):
-        """
-        Filter observed and predicted time series data so that the mean l1 error is within a tolerance.
-        :param time_start_idx: first time index to filter
-        :type time_start_idx: int
-        :param time_end_idx: last time index to filter
-        :type time_end_idx: int
-        :param num_clean_obs: number of filtered observations to make
-        :type num_clean_obs: int
-        :param tol: tolerance for constructing splines
-        :type tol: float
-        :param min_knots: maximum number of knots allowed
-        :type min_knots: int
-        :param max_knots: minimum number of knots allowed
-        :type max_knots: int
-        :param verbose: display termination reports
-        :type verbose: bool
-        :return: arrays of filtered predictions, filtered observations, and filtered times
-        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
-        """
-
-        i = min_knots
-        # Use _old and _new to compare to tol and determine when to stop adding knots
-        # Compute _old before looping and then i=i+1
-        times = self.times[time_start_idx:time_end_idx + 1]
-        clean_times = np.linspace(
-            self.times[time_start_idx],
-            self.times[time_end_idx],
-            num_clean_obs)
-        num_predictions = self.predicted_time_series.shape[0]
-        num_obs = self.observed_time_series.shape[0]
-        self.clean_predictions = np.zeros((num_predictions, num_clean_obs))
-        self.clean_obs = np.zeros((num_obs, num_clean_obs))
-
-        for idx in range(num_predictions):
-            i = min_knots
-            q_pl_old = None
-            while i <= max_knots:
-                clean_predictions, error, q_pl = linear_c0_spline(times=times,
-                                                                  data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
-                                                                  num_knots=i,
-                                                                  clean_times=clean_times,
-                                                                  spline_old=q_pl_old)
-
-                # After an _old and a _new is computed (when i>min_knots)
-                print(idx, i, error)
-                if error <= tol:
-                    break
-                else:
-                    i += 1
-                    q_pl_old = q_pl
-                    # and _old = _new
-            if i > max_knots:
-                print("Warning: maximum number of knots reached.")
-            else:
-                print(idx, i, "knots being used")
-            self.clean_predictions[idx, :] = clean_predictions
-
-        for idx in range(num_obs):
-            i = min_knots
-            q_pl_old = None
-            while i <= max_knots:
-                clean_obs, error, q_pl = linear_c0_spline(times,
-                                                          data=self.observed_time_series[idx, time_start_idx:time_end_idx + 1],
-                                                          num_knots=i,
-                                                          clean_times=clean_times,
-                                                          spline_old=q_pl_old)
-                # After an _old and a _new is computed (when i>min_knots)
-                print(idx, i, error)
-                if error <= tol:
-                    break
-                else:
-                    i += 1
-                    q_pl_old = q_pl
-                    # and _old = _new
-            if i > max_knots:
-                print("Warning: maximum number of knots reached.")
-            else:
-                print(idx, i, "knots being used.")
-            self.clean_obs[idx, :] = clean_obs
-        self.clean_times = clean_times
-
-        return self.clean_predictions, self.clean_obs, self.clean_times
 
     def dynamics(self,
                  cluster_method='kmeans',
@@ -408,7 +116,7 @@ class LUQ(object):
         from sklearn.cluster import KMeans
 
         k_means = KMeans(init='k-means++', **kwargs)
-        k_means.fit(self.clean_predictions)
+        k_means.fit(self.filtered_predictions)
         return k_means.labels_, k_means.inertia_
 
     def learn_dynamics_spectral(self, kwargs):
@@ -421,7 +129,7 @@ class LUQ(object):
         :rtype: :class:`numpy.ndarray`
         """
         from sklearn.cluster import SpectralClustering
-        clustering = SpectralClustering(**kwargs).fit(self.clean_predictions)
+        clustering = SpectralClustering(**kwargs).fit(self.filtered_predictions)
         return clustering.labels_
 
     def learn_dynamics_dbscan(self, kwargs):
@@ -434,7 +142,7 @@ class LUQ(object):
         :rtype: :class:`numpy.ndarray`
         """
         from sklearn.cluster import DBSCAN
-        clustering = DBSCAN(**kwargs).fit(self.clean_predictions)
+        clustering = DBSCAN(**kwargs).fit(self.filtered_predictions)
         return clustering.labels_
 
     def learn_dynamics_gmm(self, kwargs):
@@ -448,8 +156,8 @@ class LUQ(object):
         """
         from sklearn.mixture import GaussianMixture
         gmm = GaussianMixture(**kwargs)
-        gmm.fit(self.clean_predictions)
-        return gmm.predict(self.clean_predictions)
+        gmm.fit(self.filtered_predictions)
+        return gmm.predict(self.filtered_predictions)
 
     def classify_dynamics(self,
                           proposals=({'kernel': 'linear'},
@@ -488,7 +196,7 @@ class LUQ(object):
         print('Best classifier is ', proposals[ind_min])
         print('Misclassification rate is ', mis_min)
         self.classifier = clfs[ind_min]
-        self.predict_labels = self.classifier.predict(self.clean_predictions)
+        self.predict_labels = self.classifier.predict(self.filtered_predictions)
         return self.classifier, self.predict_labels
 
     def classify_dynamics_svm_kfold(self, k=10, kwargs=None):
@@ -502,10 +210,10 @@ class LUQ(object):
         :rtype: :class:`sklearn.svm.SVC`, float
         """
         import numpy.random as nrand
-        num_clean = self.clean_predictions.shape[0]
-        inds = nrand.choice(num_clean, num_clean, replace=False)
-        binsize = int(num_clean / k)
-        randomized_preds = self.clean_predictions[inds, :]
+        num_filtered = self.filtered_predictions.shape[0]
+        inds = nrand.choice(num_filtered, num_filtered, replace=False)
+        binsize = int(num_filtered / k)
+        randomized_preds = self.filtered_predictions[inds, :]
         randomized_labels = self.cluster_labels[inds]
         misclass_rates = []
         for i in range(k):
@@ -530,7 +238,7 @@ class LUQ(object):
             kwargs)
         clf = self.classify_dynamics_svm(
             kwargs=kwargs,
-            data=self.clean_predictions,
+            data=self.filtered_predictions,
             labels=self.cluster_labels)
         return clf, np.average(misclass_rates)
 
@@ -548,7 +256,7 @@ class LUQ(object):
         """
         from sklearn import svm
         if data is None:
-            data = self.clean_predictions
+            data = self.filtered_predictions
             labels = self.cluster_labels
 
         clf = svm.SVC(gamma='auto', **kwargs)
@@ -587,9 +295,9 @@ class LUQ(object):
             print("No clustering performed. Assuming a single cluster.")
             self.num_clusters = 1
             self.predict_labels = np.array(
-                self.predicted_time_series.shape[0] * [0])
+                self.filtered_predictions.shape[0] * [0])
             self.obs_labels = np.array(
-                self.observed_time_series.shape[0] * [0])
+                self.filtered_obs.shape[0] * [0])
             self.obs_empty_cluster = [False]
 
         self.kpcas = []
@@ -603,7 +311,7 @@ class LUQ(object):
             for i in range(self.num_clusters):
                 scaler = StandardScaler()
                 X_std = scaler.fit_transform(
-                    self.clean_predictions[np.where(self.predict_labels == i)[0], :])
+                    self.filtered_predictions[np.where(self.predict_labels == i)[0], :])
                 self.scalers.append(scaler)
                 kpcas_local = []
                 X_kpca_local = []
@@ -677,7 +385,7 @@ class LUQ(object):
                 scaler = StandardScaler()
                 predict_ptr = np.where(self.predict_labels == i)[0]
                 X_std = scaler.fit_transform(
-                    self.clean_predictions[predict_ptr, :])
+                    self.filtered_predictions[predict_ptr, :])
                 self.scalers.append(scaler)
                 kpcas_local = []
                 X_kpca_local = []
@@ -746,7 +454,7 @@ class LUQ(object):
         :return: cluster labels for observations
         :rtype: :class:`numpy.ndarray`
         """
-        self.obs_labels = self.classifier.predict(self.clean_obs)
+        self.obs_labels = self.classifier.predict(self.filtered_obs)
         # Mark empty observation clusters
         self.obs_empty_cluster = []
         for i in range(self.num_clusters):
@@ -766,7 +474,7 @@ class LUQ(object):
         for i in range(self.num_clusters):
             if not self.obs_empty_cluster[i]:
                 X_std = self.scalers[i].transform(
-                    self.clean_obs[np.where(self.obs_labels == i)[0], :])
+                    self.filtered_obs[np.where(self.obs_labels == i)[0], :])
                 X_kpca = self.kpcas[i].transform(X_std)
                 self.obs_maps.append(X_kpca[:, 0:self.num_pcs[i]])
             else:
@@ -800,50 +508,309 @@ class LUQ(object):
         self.transform_observations()
         return self.predict_maps, self.obs_maps
 
-    # Move the below out of LUQ
-    def generate_kdes(self):
-        from scipy.stats import gaussian_kde as GKDE
+class LUQ_time(LUQ):
+    '''
+    LUQ sub-class for filtering time series data. Initializes super class after data is filtered.
+    '''
 
-        self.pi_predict_kdes = []
-        self.pi_obs_kdes = []
+    def __init__(self,
+                 predicted_time_series,
+                 observed_time_series,
+                 times):
+        """
+        Initializes objects. All time series arrays should be the same length.
+        :param predicted_time_series: time series from predictions
+        :type predicted_time_series: :class:`numpy.ndarray`
+        :param observed_time_series: time series from observations
+        :type observed_time_series: :class:`numpy.ndarray`
+        :param times: points in time for time series
+        :type times: :class:`numpy.ndarray`
+        """
 
-        for i in range(self.num_clusters):
-            self.pi_predict_kdes.append(GKDE(self.predict_maps[i].T))
-            self.pi_obs_kdes.append(GKDE(self.obs_maps[i].T))
-        return self.pi_predict_kdes, self.pi_obs_kdes
+        self.predicted_time_series = predicted_time_series
+        self.observed_time_series = observed_time_series
+        self.times = times
+        self.predict_knots = []
+        self.obs_knots = []
 
-    def compute_r(self):
+    def filter_data(
+            self,
+            time_start_idx,
+            time_end_idx,
+            num_filtered_obs,
+            tol,
+            min_knots=3,
+            max_knots=100,
+            verbose=False):
+        """
+        Filter observed and predicted time series data so that difference between iterations is within tolerance.
+        :param time_start_idx: first time index to filter
+        :type time_start_idx: int
+        :param time_end_idx: last time index to filter
+        :type time_end_idx: int
+        :param num_filtered_obs: number of filtered observations to make
+        :type num_filtered_obs: int
+        :param tol: tolerance for constructing splines
+        :type tol: float
+        :param min_knots: maximum number of knots allowed
+        :type min_knots: int
+        :param max_knots: minimum number of knots allowed
+        :type max_knots: int
+        :param verbose: display termination reports
+        :type verbose: bool
+        :return: arrays of filtered predictions, filtered observations, and filtered times
+        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
+        """
 
-        def rejection_sampling(r):
-            # Perform accept/reject sampling on a set of proposal samples using
-            # the weights r associated with the set of samples and return
-            # the indices idx of the proposal sample set that are accepted.
-            N = r.size  # size of proposal sample set
-            # create random uniform weights to check r against
-            check = np.random.uniform(low=0, high=1, size=N)
-            M = np.max(r)
-            new_r = r / M  # normalize weights
-            idx = np.where(new_r >= check)[0]  # rejection criterion
-            return idx
+        # Use _old and _new to compare to tol and determine when to stop adding knots
+        # Compute _old before looping and then i=i+1
+        times = self.times[time_start_idx:time_end_idx + 1]
+        filtered_times = np.linspace(
+            self.times[time_start_idx],
+            self.times[time_end_idx],
+            num_filtered_obs)
+        num_predictions = self.predicted_time_series.shape[0]
+        num_obs = self.observed_time_series.shape[0]
+        self.filtered_predictions = np.zeros((num_predictions, num_filtered_obs))
+        self.filtered_obs = np.zeros((num_obs, num_filtered_obs))
 
-        r = []
-        rs = []
-        samples_to_keep = []
+        for idx in range(num_predictions):
+            filtered_predictions_old, error_old, q_pl = linear_c0_spline(times=times, 
+                                                                         data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
+                                                                         num_knots=min_knots,
+                                                                         filtered_times=filtered_times,
+                                                                         verbose=verbose)
+            i = min_knots + 1
+            while i <= max_knots:
+                filtered_predictions_new, error_new, q_pl = linear_c0_spline(times=times, 
+                                                                             data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
+                                                                             num_knots=i,
+                                                                             filtered_times=filtered_times,
+                                                                             spline_old=q_pl,
+                                                                             verbose=verbose)
 
-        for i in range(self.num_clusters):
-            # First compute the rejection ratio
-            r.append(
-                np.divide(
-                    self.pi_obs_kdes[i](
-                        self.predict_maps[i].T), self.pi_predict_kdes[i](
-                        self.predict_maps[i].T)))
+                # After an _old and a _new is computed (when i>min_knots)
+                print(idx, i, error_new)
+                diff = np.average(np.abs(filtered_predictions_new - filtered_predictions_old)) / \
+                    np.average(np.abs(self.predicted_time_series[idx,
+                                                                 time_start_idx:time_end_idx + 1]))
+                if diff < tol:
+                    break
+                else:
+                    i += 1
+                    if i <= max_knots:
+                        filtered_predictions_old = filtered_predictions_new
+            if i > max_knots:
+                print("Warning: maximum number of knots reached.")
+            else:
+                print(idx, i, "knots being used with error of", error_new)
+            if i > max_knots and error_old < error_new:
+                self.filtered_predictions[idx, :] = filtered_predictions_old
+            else:
+                self.filtered_predictions[idx, :] = filtered_predictions_new
+            self.predict_knots.append(q_pl)
 
-            # Now perform rejection sampling and return the indices we keep
-            samples_to_keep.append(rejection_sampling(r[i]))
+        for idx in range(num_obs):
+            filtered_obs_old, error_old, q_pl = linear_c0_spline(times=times,
+                                                              data=self.observed_time_series[idx,
+                                                                                             time_start_idx:time_end_idx + 1],
+                                                              num_knots=min_knots,
+                                                              filtered_times=filtered_times, verbose=verbose)
+            i = min_knots + 1
+            while i <= max_knots:
+                filtered_obs_new, error_new, q_pl = linear_c0_spline(times=times,
+                                                                  data=self.observed_time_series[idx, time_start_idx:time_end_idx + 1],
+                                                                  num_knots=i,
+                                                                  filtered_times=filtered_times,
+                                                                  spline_old=q_pl, verbose=verbose)
+                print(idx, i, error_new)
+                diff = np.average(np.abs(filtered_obs_new - filtered_obs_old)) / np.average(
+                    np.abs(self.observed_time_series[idx, time_start_idx:time_end_idx + 1]))
+                if diff < tol:
+                    break
+                else:
+                    i += 1
+                    if i <= max_knots:
+                        filtered_obs_old = filtered_obs_new
+            if i > max_knots:
+                print("Warning: maximum number of knots reached.")
+            else:
+                print(idx, i, "knots being used with error of", error_new)
+            if i > max_knots and error_old < error_new:
+                self.filtered_obs[idx, :] = filtered_obs_old
+            else:
+                self.filtered_obs[idx, :] = filtered_obs_new
+            self.obs_knots.append(q_pl)
+        self.filtered_times = filtered_times
+    
+        super().__init__(filtered_predictions=self.filtered_predictions,
+                         filtered_obs=self.filtered_obs)
+        
+        return self.filtered_predictions, self.filtered_obs, self.filtered_times
 
-            rs.append((r[i].mean()))
-        print(
-            'Diagnostic for clusters [sample average of ratios in each cluster]:',
-            rs)
-        self.r = r
-        return self.r
+    def filter_data_tol(
+            self,
+            time_start_idx,
+            time_end_idx,
+            num_filtered_obs,
+            tol,
+            min_knots=3,
+            max_knots=100,
+            verbose=False):
+        """
+        Filter observed and predicted time series data so that the mean l1 error is within a tolerance.
+        :param time_start_idx: first time index to filter
+        :type time_start_idx: int
+        :param time_end_idx: last time index to filter
+        :type time_end_idx: int
+        :param num_filtered_obs: number of filtered observations to make
+        :type num_filtered_obs: int
+        :param tol: tolerance for constructing splines
+        :type tol: float
+        :param min_knots: maximum number of knots allowed
+        :type min_knots: int
+        :param max_knots: minimum number of knots allowed
+        :type max_knots: int
+        :param verbose: display termination reports
+        :type verbose: bool
+        :return: arrays of filtered predictions, filtered observations, and filtered times
+        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
+        """
+
+        i = min_knots
+        # Use _old and _new to compare to tol and determine when to stop adding knots
+        # Compute _old before looping and then i=i+1
+        times = self.times[time_start_idx:time_end_idx + 1]
+        filtered_times = np.linspace(
+            self.times[time_start_idx],
+            self.times[time_end_idx],
+            num_filtered_obs)
+        num_predictions = self.predicted_time_series.shape[0]
+        num_obs = self.observed_time_series.shape[0]
+        self.filtered_predictions = np.zeros((num_predictions, num_filtered_obs))
+        self.filtered_obs = np.zeros((num_obs, num_filtered_obs))
+
+        for idx in range(num_predictions):
+            i = min_knots
+            q_pl_old = None
+            while i <= max_knots:
+                filtered_predictions, error, q_pl = linear_c0_spline(times=times, 
+                                                                     data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
+                                                                     num_knots=i,
+                                                                     filtered_times=filtered_times,
+                                                                     spline_old=q_pl_old)
+
+                # After an _old and a _new is computed (when i>min_knots)
+                print(idx, i, error)
+                if error <= tol:
+                    break
+                else:
+                    i += 1
+                    q_pl_old = q_pl
+                    # and _old = _new
+            if i > max_knots:
+                print("Warning: maximum number of knots reached.")
+            else:
+                print(idx, i, "knots being used")
+            self.filtered_predictions[idx, :] = filtered_predictions
+
+        for idx in range(num_obs):
+            i = min_knots
+            q_pl_old = None
+            while i <= max_knots:
+                filtered_obs, error, q_pl = linear_c0_spline(times, 
+                                                             data=self.observed_time_series[idx, time_start_idx:time_end_idx + 1],
+                                                             num_knots=i,
+                                                             filtered_times=filtered_times,
+                                                             spline_old=q_pl_old)
+                # After an _old and a _new is computed (when i>min_knots)
+                print(idx, i, error)
+                if error <= tol:
+                    break
+                else:
+                    i += 1
+                    q_pl_old = q_pl
+                    # and _old = _new
+            if i > max_knots:
+                print("Warning: maximum number of knots reached.")
+            else:
+                print(idx, i, "knots being used.")
+            self.filtered_obs[idx, :] = filtered_obs
+        self.filtered_times = filtered_times
+
+        super().__init__(filtered_predictions=self.filtered_predictions,
+                         filtered_obs=self.filtered_obs)  
+
+        return self.filtered_predictions, self.filtered_obs, self.filtered_times
+
+class LUQ_spatial(LUQ):
+    '''
+    Sub-class of LUQ for filtering spatial data. LUQ super-class instatiated after data is filtered.
+    '''
+
+    def __init__(self, 
+                 predicted_data, 
+                 observed_data,
+                 predicted_data_coordinates,
+                 observed_data_coordinates=None,
+                 predictions_need_filtering=False):
+        '''
+        :param predicted_data: predicted spatial data at predicted_data_coordinates
+        :type predicted_data: :class:'numpy.ndarray'
+        :param observed_data: observed spatial data at observed_data_coordinates or predicted_data_coordinates if observed_data_coordinates=None
+        :type observed_data: :class:'numpy.ndarray'
+        :param predicted_data_coordinates: spatial coordinates of predicted_data
+        :type predicted_data_coordinates: :class:'numpy.ndarray'
+        :param observed_data_coordinates: spatial coordinates of observed_data; if None, assumed to be the same as predicted_data_coordinates
+        :type observed_data_coordinates: :class:'numpy.ndarray' or NoneType
+        '''
+
+        self.predicted_data = predicted_data
+        self.observed_data = observed_data
+        self.predicted_data_coordinates = predicted_data_coordinates
+        if observed_data_coordinates is None:
+            self.observed_data_coordinates = predicted_data_coordinates
+        else:
+            self.observed_data_coordinates = observed_data_coordinates
+        self.predictions_need_filtering = predictions_need_filtering
+
+    def filter_data(self,
+                   num_rbf_list,
+                   remove_trend=False,
+                   add_poly=False,
+                   poly_deg=None,
+                   initializer='Halton',
+                   max_opt_count=3,
+                   tol=1e-4):
+        
+        if self.predictions_need_filtering:
+            fit_pred = RBFFit(self.predicted_data_coordinates, 
+                              self.predicted_data_coordinates,
+                              remove_trend,
+                              add_poly,
+                              poly_deg)
+            
+            filtered_predictions = fit_pred.filter_data(self.predicted_data, 
+                                                        num_rbf_list,
+                                                        initializer,
+                                                        max_opt_count,
+                                                        tol)
+        else:
+            filtered_predictions = self.predicted_data
+        
+        fit_obs = RBFFit(self.observed_data_coordinates,
+                         self.predicted_data_coordinates,
+                         remove_trend,
+                         add_poly,
+                         poly_deg)
+        
+        filtered_obs = fit_obs.filter_data(self.observed_data, 
+                                           num_rbf_list,
+                                           initializer,
+                                           max_opt_count,
+                                           tol)
+        
+        super().__init__(filtered_predictions,
+                         filtered_obs) 
+        
+        return filtered_predictions, filtered_obs
