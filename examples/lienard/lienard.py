@@ -57,7 +57,7 @@ if with_noise:
 # plt.show()
 
 # Use LUQ to learn dynamics and QoIs
-learn = LUQ_time(predicted_time_series, observed_time_series, times)
+learn = LUQ_temporal(predicted_time_series, observed_time_series, times)
 
 # time array indices over which to use
 time_start_idx = 350

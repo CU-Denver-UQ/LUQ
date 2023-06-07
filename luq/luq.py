@@ -508,7 +508,7 @@ class LUQ(object):
         self.transform_observations()
         return self.predict_maps, self.obs_maps
 
-class LUQ_time(LUQ):
+class LUQ_temporal(LUQ):
     '''
     LUQ sub-class for filtering time series data. Initializes super class after data is filtered.
     '''

@@ -108,7 +108,7 @@ param_range = np.array([[0.75, 3.0]])
 param_labels = [r'$a$']
 
 # Use LUQ to learn dynamics and QoIs
-learn = LUQ_time(predicted_time_series, observed_time_series, times)
+learn = LUQ_temporal(predicted_time_series, observed_time_series, times)
 
 # time array indices over which to use
 time_start_idx = 0
@@ -307,7 +307,7 @@ for i in range(learn.num_clusters):
             pi_predict_kdes[i](
                 learn.predict_maps[i].T)))
     r_means.append(np.mean(r_vals[i]))
-print(f'Diagnositics: {r_means}')
+print(f'Diagnostics: {r_means}')
 
 # Compute marginal probabilities for each parameter and initial condition.
 param_marginals = []
@@ -427,7 +427,7 @@ if with_noise:
         np.random.randn(num_obs2, times.shape[0])
 
 # Use LUQ to learn dynamics and QoIs
-learn2 = LUQ_time(predicted_time_series2, observed_time_series2, times)
+learn2 = LUQ_temporal(predicted_time_series2, observed_time_series2, times)
 
 # time array indices over which to use
 time_start_idx = 250
@@ -511,7 +511,7 @@ for i in range(learn2.num_clusters):
             pi_predict_kdes2[i](
                 learn2.predict_maps[i].T)))
     r_means2.append(np.mean(r_vals2[i]))
-print(f'Diagnositics: {r_means2}')
+print(f'Diagnostics: {r_means2}')
 
 # Compute marginal probabilities for each parameter and initial condition.
 param2_marginals = []
