@@ -108,7 +108,7 @@ param_range = np.array([[0.75, 3.0]])
 param_labels = [r'$a$']
 
 # Use LUQ to learn dynamics and QoIs
-learn = LUQ(predicted_time_series, observed_time_series, times)
+learn = LUQ_temporal(predicted_time_series, observed_time_series, times)
 
 # time array indices over which to use
 time_start_idx = 0
@@ -232,7 +232,7 @@ def plot_gap(all_eig_vals, n, cluster):
     fig = plt.figure(figsize=(10, 10))
     fig.clear()
     #  Plotting until maximum number of knots
-    eig_vals = all_eig_vals[cluster].lambdas_[0:10]
+    eig_vals = all_eig_vals[cluster].eigenvalues_[0:10]
     plt.semilogy(
         np.arange(
             np.size(eig_vals)) +
@@ -240,8 +240,8 @@ def plot_gap(all_eig_vals, n, cluster):
         eig_vals /
         np.sum(eig_vals) *
         100,
-        Marker='.',
-        MarkerSize=20,
+        marker='.',
+        markersize=20,
         linestyle='')
     plt.semilogy(
         np.arange(
@@ -285,17 +285,29 @@ def plot_gap(all_eig_vals, n, cluster):
     plt.xlabel('Principal Component #')
     plt.ylabel('% of Variation')
     plt.xlim([0.1, np.size(eig_vals) + 1])
-    plt.ylim([0, 500])
+    plt.ylim([1e-5, 500])
     plt.show()
 
 
 plot_gap(all_eig_vals=learn.kpcas, n=0, cluster=0)
 plot_gap(all_eig_vals=learn.kpcas, n=0, cluster=1)
 
-# Generate kernel density estimates on new QoI
-learn.generate_kdes()
-# Calculate rejection rates for each cluster and print averages.
-r_vals = learn.compute_r()
+# Generate kernel density estimates on new QoI and calculate new weights
+pi_predict_kdes = []
+pi_obs_kdes = []
+r_vals = []
+r_means = []
+for i in range(learn.num_clusters):
+    pi_predict_kdes.append(GKDE(learn.predict_maps[i].T))
+    pi_obs_kdes.append(GKDE(learn.obs_maps[i].T))
+    r_vals.append(
+        np.divide(
+            pi_obs_kdes[i](
+                learn.predict_maps[i].T), 
+            pi_predict_kdes[i](
+                learn.predict_maps[i].T)))
+    r_means.append(np.mean(r_vals[i]))
+print(f'Diagnostics: {r_means}')
 
 # Compute marginal probabilities for each parameter and initial condition.
 param_marginals = []
@@ -311,7 +323,7 @@ for i in range(params.shape[1]):
     param_marginals.append([])
     for j in range(learn.num_clusters):
         param_marginals[i].append(
-            GKDE(params[lam_ptr[j], i], weights=learn.r[j]))
+            GKDE(params[lam_ptr[j], i], weights=r_vals[j]))
 
 
 # uniform distribution
@@ -415,7 +427,7 @@ if with_noise:
         np.random.randn(num_obs2, times.shape[0])
 
 # Use LUQ to learn dynamics and QoIs
-learn2 = LUQ(predicted_time_series2, observed_time_series2, times)
+learn2 = LUQ_temporal(predicted_time_series2, observed_time_series2, times)
 
 # time array indices over which to use
 time_start_idx = 250
@@ -484,10 +496,22 @@ predict_map2, obs_map2 = learn2.learn_qois_and_transform(num_qoi=1)
 plot_gap(all_eig_vals=learn2.kpcas, n=0, cluster=0)
 plot_gap(all_eig_vals=learn2.kpcas, n=0, cluster=1)
 
-# Generate kernel density estimates on new QoI
-learn2.generate_kdes()
-# Calculate rejection rates for each cluster and print averages.
-r_vals2 = learn2.compute_r()
+# Generate kernel density estimates on new QoI and calculate new weights
+pi_predict_kdes2 = []
+pi_obs_kdes2 = []
+r_vals2 = []
+r_means2 = []
+for i in range(learn2.num_clusters):
+    pi_predict_kdes2.append(GKDE(learn2.predict_maps[i].T))
+    pi_obs_kdes2.append(GKDE(learn2.obs_maps[i].T))
+    r_vals2.append(
+        np.divide(
+            pi_obs_kdes2[i](
+                learn2.predict_maps[i].T), 
+            pi_predict_kdes2[i](
+                learn2.predict_maps[i].T)))
+    r_means2.append(np.mean(r_vals2[i]))
+print(f'Diagnostics: {r_means2}')
 
 # Compute marginal probabilities for each parameter and initial condition.
 param2_marginals = []
@@ -503,7 +527,7 @@ for i in range(params.shape[1]):
     param2_marginals.append([])
     for j in range(learn2.num_clusters):
         param2_marginals[i].append(
-            GKDE(params[lam_ptr2[j], i], weights=learn2.r[j]))
+            GKDE(params[lam_ptr2[j], i], weights=r_vals2[j]))
 
 # Plot predicted marginal densities for parameters
 
