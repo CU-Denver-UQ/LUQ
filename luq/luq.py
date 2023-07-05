@@ -52,6 +52,8 @@ class LUQ(object):
 
     def dynamics(self,
                  cluster_method='kmeans',
+                 custom_labels=None,
+                 relabel_predictions=True,
                  kwargs={'n_clusters': 3,
                          'n_init': 10},
                  proposals=({'kernel': 'linear'},
@@ -63,6 +65,10 @@ class LUQ(object):
         Learn and classify dynamics, then classify observations.
         :param cluster_method: type of clustering to use ('kmeans' or 'spectral')
         :type cluster_method: str
+        :param custom_labels: custom labels for predictions; if not None, no clustering is performed
+        :type custom_labels: NoneType or :class:`numpy.ndarray`
+        :param relabel_predictions: if custom_labels is not None, relabel_predictions controls if predictions are relabeled via SVM classification
+        :type relabel_predictions: bool
         :param kwargs: keyword arguments for clustering method
         :type kwargs: dict
         :param proposals: proposal keyword arguments for svm classifier
@@ -71,13 +77,18 @@ class LUQ(object):
         :type k: int
         """
 
-        self.learn_dynamics(cluster_method=cluster_method, kwargs=kwargs)
-        self.classify_dynamics(proposals=proposals, k=k)
+        self.learn_dynamics(cluster_method=cluster_method,
+                            custom_labels=custom_labels,
+                            kwargs=kwargs)
+        self.classify_dynamics(proposals=proposals,
+                               relabel_predictions=relabel_predictions,
+                               k=k)
         self.classify_observations()
 
     def learn_dynamics(
         self,
         cluster_method='kmeans',
+        custom_labels=None,
         kwargs={
             'n_clusters': 3,
             'n_init': 10}):
@@ -85,12 +96,17 @@ class LUQ(object):
         Learn dynamics.
         :param cluster_method: type of clustering to use ('kmeans' or 'spectral')
         :type cluster_method: str
+        :param custom_labels: custom labels for predictions; if not None, no clustering is performed
+        :type custom_labels: NoneType or :class:`numpy.ndarray`
         :param kwargs: keyword arguments for clustering method
         :type kwargs: dict
         :return: cluster labels and inertia (None if not kmeans)
         :rtype: :class:`numpy.ndarray`, float
         """
-        if cluster_method == 'kmeans':
+        if custom_labels is not None:
+            self.cluster_labels = custom_labels
+            inertia = None
+        elif cluster_method == 'kmeans':
             self.cluster_labels, inertia = self.learn_dynamics_kmeans(kwargs)
         elif cluster_method == 'spectral':
             self.cluster_labels = self.learn_dynamics_spectral(kwargs)
@@ -164,6 +180,7 @@ class LUQ(object):
                                      {'kernel': 'rbf'},
                                      {'kernel': 'poly'},
                                      {'kernel': 'sigmoid'}),
+                          relabel_predictions=True,
                           k=10):
         """
         Classify dynamics using best SVM method based on k-fold cross validation from a list of proposal keyword
@@ -171,6 +188,8 @@ class LUQ(object):
         https://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html#sklearn.svm.SVC
         :param proposals: list of proposal SVM keyword arguments
         :type proposals: list
+        :param relabel_predictions: if custom_labels is not None, relabel_predictions controls if predictions are relabeled via SVM classification
+        :type relabel_predictions: bool
         :param k: k for k-fold cross validation
         :type k: int
         :return: classifier object and labels of predictions
@@ -196,7 +215,10 @@ class LUQ(object):
         print('Best classifier is ', proposals[ind_min])
         print('Misclassification rate is ', mis_min)
         self.classifier = clfs[ind_min]
-        self.predict_labels = self.classifier.predict(self.filtered_predictions)
+        if relabel_predictions:
+            self.predict_labels = self.classifier.predict(self.filtered_predictions)
+        else:
+            self.predict_labels = self.cluster_labels
         return self.classifier, self.predict_labels
 
     def classify_dynamics_svm_kfold(self, k=10, kwargs=None):
