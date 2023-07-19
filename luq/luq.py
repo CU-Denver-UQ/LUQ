@@ -52,6 +52,8 @@ class LUQ(object):
 
     def dynamics(self,
                  cluster_method='kmeans',
+                 custom_labels=None,
+                 relabel_predictions=True,
                  kwargs={'n_clusters': 3,
                          'n_init': 10},
                  proposals=({'kernel': 'linear'},
@@ -63,6 +65,10 @@ class LUQ(object):
         Learn and classify dynamics, then classify observations.
         :param cluster_method: type of clustering to use ('kmeans' or 'spectral')
         :type cluster_method: str
+        :param custom_labels: custom labels for predictions; if not None, no clustering is performed
+        :type custom_labels: NoneType or :class:`numpy.ndarray`
+        :param relabel_predictions: if custom_labels is not None, relabel_predictions controls if predictions are relabeled via SVM classification
+        :type relabel_predictions: bool
         :param kwargs: keyword arguments for clustering method
         :type kwargs: dict
         :param proposals: proposal keyword arguments for svm classifier
@@ -71,13 +77,18 @@ class LUQ(object):
         :type k: int
         """
 
-        self.learn_dynamics(cluster_method=cluster_method, kwargs=kwargs)
-        self.classify_dynamics(proposals=proposals, k=k)
+        self.learn_dynamics(cluster_method=cluster_method,
+                            custom_labels=custom_labels,
+                            kwargs=kwargs)
+        self.classify_dynamics(proposals=proposals,
+                               relabel_predictions=relabel_predictions,
+                               k=k)
         self.classify_observations()
 
     def learn_dynamics(
         self,
         cluster_method='kmeans',
+        custom_labels=None,
         kwargs={
             'n_clusters': 3,
             'n_init': 10}):
@@ -85,12 +96,17 @@ class LUQ(object):
         Learn dynamics.
         :param cluster_method: type of clustering to use ('kmeans' or 'spectral')
         :type cluster_method: str
+        :param custom_labels: custom labels for predictions; if not None, no clustering is performed
+        :type custom_labels: NoneType or :class:`numpy.ndarray`
         :param kwargs: keyword arguments for clustering method
         :type kwargs: dict
         :return: cluster labels and inertia (None if not kmeans)
         :rtype: :class:`numpy.ndarray`, float
         """
-        if cluster_method == 'kmeans':
+        if custom_labels is not None:
+            self.cluster_labels = custom_labels
+            inertia = None
+        elif cluster_method == 'kmeans':
             self.cluster_labels, inertia = self.learn_dynamics_kmeans(kwargs)
         elif cluster_method == 'spectral':
             self.cluster_labels = self.learn_dynamics_spectral(kwargs)
@@ -164,6 +180,7 @@ class LUQ(object):
                                      {'kernel': 'rbf'},
                                      {'kernel': 'poly'},
                                      {'kernel': 'sigmoid'}),
+                          relabel_predictions=True,
                           k=10):
         """
         Classify dynamics using best SVM method based on k-fold cross validation from a list of proposal keyword
@@ -171,6 +188,8 @@ class LUQ(object):
         https://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html#sklearn.svm.SVC
         :param proposals: list of proposal SVM keyword arguments
         :type proposals: list
+        :param relabel_predictions: if custom_labels is not None, relabel_predictions controls if predictions are relabeled via SVM classification
+        :type relabel_predictions: bool
         :param k: k for k-fold cross validation
         :type k: int
         :return: classifier object and labels of predictions
@@ -196,7 +215,10 @@ class LUQ(object):
         print('Best classifier is ', proposals[ind_min])
         print('Misclassification rate is ', mis_min)
         self.classifier = clfs[ind_min]
-        self.predict_labels = self.classifier.predict(self.filtered_predictions)
+        if relabel_predictions:
+            self.predict_labels = self.classifier.predict(self.filtered_predictions)
+        else:
+            self.predict_labels = self.cluster_labels
         return self.classifier, self.predict_labels
 
     def classify_dynamics_svm_kfold(self, k=10, kwargs=None):
@@ -541,7 +563,8 @@ class LUQ_temporal(LUQ):
             tol,
             min_knots=3,
             max_knots=100,
-            verbose=False):
+            verbose=False,
+            predictions_need_filtering=True):
         """
         Filter observed and predicted time series data so that difference between iterations is within tolerance.
         :param time_start_idx: first time index to filter
@@ -560,6 +583,8 @@ class LUQ_temporal(LUQ):
         :type verbose: bool
         :return: arrays of filtered predictions, filtered observations, and filtered times
         :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
+        :param predictions_need_filtering: check if predictions should be filtered
+        :type predictions_need_filtering: bool
         """
 
         # Use _old and _new to compare to tol and determine when to stop adding knots
@@ -569,46 +594,49 @@ class LUQ_temporal(LUQ):
             self.times[time_start_idx],
             self.times[time_end_idx],
             num_filtered_obs)
-        num_predictions = self.predicted_time_series.shape[0]
         num_obs = self.observed_time_series.shape[0]
-        self.filtered_predictions = np.zeros((num_predictions, num_filtered_obs))
         self.filtered_obs = np.zeros((num_obs, num_filtered_obs))
 
-        for idx in range(num_predictions):
-            filtered_predictions_old, error_old, q_pl = linear_c0_spline(times=times, 
-                                                                         data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
-                                                                         num_knots=min_knots,
-                                                                         filtered_times=filtered_times,
-                                                                         verbose=verbose)
-            i = min_knots + 1
-            while i <= max_knots:
-                filtered_predictions_new, error_new, q_pl = linear_c0_spline(times=times, 
-                                                                             data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
-                                                                             num_knots=i,
-                                                                             filtered_times=filtered_times,
-                                                                             spline_old=q_pl,
-                                                                             verbose=verbose)
+        if predictions_need_filtering:
+            num_predictions = self.predicted_time_series.shape[0]
+            self.filtered_predictions = np.zeros((num_predictions, num_filtered_obs))
+            for idx in range(num_predictions):
+                filtered_predictions_old, error_old, q_pl = linear_c0_spline(times=times, 
+                                                                            data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
+                                                                            num_knots=min_knots,
+                                                                            filtered_times=filtered_times,
+                                                                            verbose=verbose)
+                i = min_knots + 1
+                while i <= max_knots:
+                    filtered_predictions_new, error_new, q_pl = linear_c0_spline(times=times, 
+                                                                                data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
+                                                                                num_knots=i,
+                                                                                filtered_times=filtered_times,
+                                                                                spline_old=q_pl,
+                                                                                verbose=verbose)
 
-                # After an _old and a _new is computed (when i>min_knots)
-                print(idx, i, error_new)
-                diff = np.average(np.abs(filtered_predictions_new - filtered_predictions_old)) / \
-                    np.average(np.abs(self.predicted_time_series[idx,
-                                                                 time_start_idx:time_end_idx + 1]))
-                if diff < tol:
-                    break
+                    # After an _old and a _new is computed (when i>min_knots)
+                    print(idx, i, error_new)
+                    diff = np.average(np.abs(filtered_predictions_new - filtered_predictions_old)) / \
+                        np.average(np.abs(self.predicted_time_series[idx,
+                                                                    time_start_idx:time_end_idx + 1]))
+                    if diff < tol:
+                        break
+                    else:
+                        i += 1
+                        if i <= max_knots:
+                            filtered_predictions_old = filtered_predictions_new
+                if i > max_knots:
+                    print("Warning: maximum number of knots reached.")
                 else:
-                    i += 1
-                    if i <= max_knots:
-                        filtered_predictions_old = filtered_predictions_new
-            if i > max_knots:
-                print("Warning: maximum number of knots reached.")
-            else:
-                print(idx, i, "knots being used with error of", error_new)
-            if i > max_knots and error_old < error_new:
-                self.filtered_predictions[idx, :] = filtered_predictions_old
-            else:
-                self.filtered_predictions[idx, :] = filtered_predictions_new
-            self.predict_knots.append(q_pl)
+                    print(idx, i, "knots being used with error of", error_new)
+                if i > max_knots and error_old < error_new:
+                    self.filtered_predictions[idx, :] = filtered_predictions_old
+                else:
+                    self.filtered_predictions[idx, :] = filtered_predictions_new
+                self.predict_knots.append(q_pl)
+        else:
+            self.filtered_predictions = self.predicted_time_series
 
         for idx in range(num_obs):
             filtered_obs_old, error_old, q_pl = linear_c0_spline(times=times,
@@ -656,7 +684,8 @@ class LUQ_temporal(LUQ):
             tol,
             min_knots=3,
             max_knots=100,
-            verbose=False):
+            verbose=False,
+            predictions_need_filtering=True):
         """
         Filter observed and predicted time series data so that the mean l1 error is within a tolerance.
         :param time_start_idx: first time index to filter
@@ -675,6 +704,8 @@ class LUQ_temporal(LUQ):
         :type verbose: bool
         :return: arrays of filtered predictions, filtered observations, and filtered times
         :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
+        :param predictions_need_filtering: check if predictions should be filtered
+        :type predictions_need_filtering: bool
         """
 
         i = min_knots
@@ -685,34 +716,37 @@ class LUQ_temporal(LUQ):
             self.times[time_start_idx],
             self.times[time_end_idx],
             num_filtered_obs)
-        num_predictions = self.predicted_time_series.shape[0]
         num_obs = self.observed_time_series.shape[0]
-        self.filtered_predictions = np.zeros((num_predictions, num_filtered_obs))
         self.filtered_obs = np.zeros((num_obs, num_filtered_obs))
 
-        for idx in range(num_predictions):
-            i = min_knots
-            q_pl_old = None
-            while i <= max_knots:
-                filtered_predictions, error, q_pl = linear_c0_spline(times=times, 
-                                                                     data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
-                                                                     num_knots=i,
-                                                                     filtered_times=filtered_times,
-                                                                     spline_old=q_pl_old)
+        if predictions_need_filtering:
+            num_predictions = self.predicted_time_series.shape[0]
+            self.filtered_predictions = np.zeros((num_predictions, num_filtered_obs))
+            for idx in range(num_predictions):
+                i = min_knots
+                q_pl_old = None
+                while i <= max_knots:
+                    filtered_predictions, error, q_pl = linear_c0_spline(times=times, 
+                                                                        data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
+                                                                        num_knots=i,
+                                                                        filtered_times=filtered_times,
+                                                                        spline_old=q_pl_old)
 
-                # After an _old and a _new is computed (when i>min_knots)
-                print(idx, i, error)
-                if error <= tol:
-                    break
+                    # After an _old and a _new is computed (when i>min_knots)
+                    print(idx, i, error)
+                    if error <= tol:
+                        break
+                    else:
+                        i += 1
+                        q_pl_old = q_pl
+                        # and _old = _new
+                if i > max_knots:
+                    print("Warning: maximum number of knots reached.")
                 else:
-                    i += 1
-                    q_pl_old = q_pl
-                    # and _old = _new
-            if i > max_knots:
-                print("Warning: maximum number of knots reached.")
-            else:
-                print(idx, i, "knots being used")
-            self.filtered_predictions[idx, :] = filtered_predictions
+                    print(idx, i, "knots being used")
+                self.filtered_predictions[idx, :] = filtered_predictions
+        else:
+            self.filtered_predictions = self.predicted_time_series
 
         for idx in range(num_obs):
             i = min_knots
@@ -752,8 +786,7 @@ class LUQ_spatial(LUQ):
                  predicted_data, 
                  observed_data,
                  predicted_data_coordinates,
-                 observed_data_coordinates=None,
-                 predictions_need_filtering=False):
+                 observed_data_coordinates=None):
         '''
         :param predicted_data: predicted spatial data at predicted_data_coordinates
         :type predicted_data: :class:'numpy.ndarray'
@@ -772,7 +805,6 @@ class LUQ_spatial(LUQ):
             self.observed_data_coordinates = predicted_data_coordinates
         else:
             self.observed_data_coordinates = observed_data_coordinates
-        self.predictions_need_filtering = predictions_need_filtering
 
     def filter_data(self,
                    num_rbf_list,
@@ -781,9 +813,10 @@ class LUQ_spatial(LUQ):
                    poly_deg=None,
                    initializer='Halton',
                    max_opt_count=3,
-                   tol=1e-4):
+                   tol=1e-4,
+                   predictions_need_filtering=True):
         
-        if self.predictions_need_filtering:
+        if predictions_need_filtering:
             fit_pred = RBFFit(self.predicted_data_coordinates, 
                               self.predicted_data_coordinates,
                               remove_trend,
