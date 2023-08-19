@@ -566,7 +566,8 @@ class RBFFit(object):
                     num_rbf_list, 
                     initializer='Halton', 
                     max_opt_count=3, 
-                    tol=1e-2):
+                    tol=1e-2,
+                    verbose=False):
         '''
         loop for fitting parameters and returning filtered fitted data at filtered_input_data
         '''
@@ -670,10 +671,11 @@ class RBFFit(object):
 
             # checking if optimization failed at every iteration through num_rbf_list
             if error < np.inf:  
-                if reshape_filtered_data:
-                    print(f'Data fitted using {len(weights)} RBFs with a relative error of {error}.')
-                else:
-                    print(f'Data at sample {n} fitted using {len(weights)} RBFs with a relative error of {error}.')
+                if verbose:
+                    if reshape_filtered_data:
+                        print(f'Data fitted using {len(weights)} RBFs.')
+                    else:
+                        print(f'Data at sample {n} fitted using {len(weights)} RBFs.')
 
                 # creating filtered data at filtered_input_data 
                 if self.add_poly:
