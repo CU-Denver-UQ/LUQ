@@ -564,24 +564,24 @@ class LUQ(object):
         pickle.dump(self, pf)
         pf.close()
 
-class LUQ_temporal(LUQ):
+class LUQ_splines(LUQ):
     '''
-    LUQ sub-class for filtering time series data. Initializes super class after data is filtered.
+    LUQ sub-class for filtering 1-dimensional data using splines. Initializes super class after data is filtered.
     '''
 
     def __init__(self,
-                 predicted_time_series=None,
-                 observed_time_series=None):
+                 predicted_data=None,
+                 observed_data=None):
         """
-        Initializes objects. All time series arrays should be the same length.
-        :param predicted_time_series: time series from predictions
-        :type predicted_time_series: :class:`numpy.ndarray`
-        :param observed_time_series: time series from observations
-        :type observed_time_series: :class:`numpy.ndarray`
+        Initializes objects. All data arrays should be the same length.
+        :param predicted_data: data from predictions
+        :type predicted_data: :class:`numpy.ndarray`
+        :param observed_data: data from observations
+        :type observed_data: :class:`numpy.ndarray`
         """
 
-        self.predicted_time_series = predicted_time_series
-        self.observed_time_series = observed_time_series
+        self.predicted_data = predicted_data
+        self.observed_data = observed_data
         self.predict_knots = []
         self.obs_knots = []
         if 'info' in self.__dict__.keys():
@@ -600,9 +600,9 @@ class LUQ_temporal(LUQ):
 
     def filter_data(
             self,
-            times,
-            time_start_idx,
-            time_end_idx,
+            data_coordinates,
+            start_idx,
+            end_idx,
             num_filtered_obs,
             tol,
             min_knots=3,
@@ -611,13 +611,13 @@ class LUQ_temporal(LUQ):
             filter_predictions=True,
             filter_observations=True):
         """
-        Filter observed and predicted time series data so that difference between iterations is within tolerance.
-        :param times: points in time for time series
-        :type times: :class:`numpy.ndarray`
-        :param time_start_idx: first time index to filter
-        :type time_start_idx: int
-        :param time_end_idx: last time index to filter
-        :type time_end_idx: int
+        Filter observed and predicted data so that difference between iterations is within tolerance.
+        :param data_coordinates: data coordinates at which data is collected
+        :type data_coordinates: :class:`numpy.ndarray`
+        :param start_idx: first data_coordinate index to filter
+        :type start_idx: int
+        :param end_idx: last data_coordinate index to filter
+        :type end_idx: int
         :param num_filtered_obs: number of filtered observations to make
         :type num_filtered_obs: int
         :param tol: tolerance for constructing splines
@@ -628,8 +628,6 @@ class LUQ_temporal(LUQ):
         :type max_knots: int
         :param verbose: display termination reports
         :type verbose: bool
-        :return: arrays of filtered predictions, filtered observations, and filtered times
-        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
         :param filter_predictions: check if predictions should be filtered
         :type filter_predictions: bool
         :param filter_observations: check if observations should be filtered
@@ -637,49 +635,49 @@ class LUQ_temporal(LUQ):
         """
         
         # Checking if necessary data is provided
-        if self.predicted_time_series is None and filter_predictions:
-            print('No predicted data to filter. Set predicted_time_series for filtering.')
+        if self.predicted_data is None and filter_predictions:
+            print('No predicted data to filter. Set predicted_data for filtering.')
             filter_predictions = False
-        if self.observed_time_series is None and filter_observations:
-            print('No observed data to filter. Set observed_time_series for filtering.')
+        if self.observed_data is None and filter_observations:
+            print('No observed data to filter. Set observed_data for filtering.')
             filter_observations = False
 
-        self.times = times
-        times = self.times[time_start_idx:time_end_idx + 1]
-        filtered_times = np.linspace(
-            self.times[time_start_idx],
-            self.times[time_end_idx],
+        self.data_coordinates = data_coordinates
+        data_coordinates = self.data_coordinates[start_idx:end_idx + 1]
+        filtered_data_coordinates = np.linspace(
+            self.data_coordinates[start_idx],
+            self.data_coordinates[end_idx],
             num_filtered_obs)
-        self.filtered_times = filtered_times
+        self.filtered_data_coordinates = filtered_data_coordinates
         
         # filtering observations
         if filter_observations:
-            self.info['obs_filtering_params'] = {'time_start_idx': time_start_idx,
-                                                  'time_end_idx': time_end_idx,
+            self.info['obs_filtering_params'] = {'start_idx': start_idx,
+                                                  'end_idx': end_idx,
                                                   'num_filtered_obs': num_filtered_obs,
                                                   'tol': tol,
                                                   'min_knots': min_knots,
                                                   'max_knots': max_knots}
             # Use _old and _new to compare to tol and determine when to stop adding knots
             # Compute _old before looping and then i=i+1
-            num_obs = self.observed_time_series.shape[0]
+            num_obs = self.observed_data.shape[0]
             self.filtered_obs = np.zeros((num_obs, num_filtered_obs))
             for idx in range(num_obs):
-                filtered_obs_old, error_old, q_pl = linear_c0_spline(times=times,
-                                                                data=self.observed_time_series[idx,
-                                                                                                time_start_idx:time_end_idx + 1],
+                filtered_obs_old, error_old, q_pl = linear_c0_spline(data_coordinates=data_coordinates,
+                                                                data=self.observed_data[idx,
+                                                                                        start_idx:end_idx + 1],
                                                                 num_knots=min_knots,
-                                                                filtered_times=filtered_times, verbose=verbose)
+                                                                filtered_data_coordinates=filtered_data_coordinates, verbose=verbose)
                 i = min_knots + 1
                 while i <= max_knots:
-                    filtered_obs_new, error_new, q_pl = linear_c0_spline(times=times,
-                                                                    data=self.observed_time_series[idx, time_start_idx:time_end_idx + 1],
+                    filtered_obs_new, error_new, q_pl = linear_c0_spline(data_coordinates=data_coordinates,
+                                                                    data=self.observed_data[idx, start_idx:end_idx + 1],
                                                                     num_knots=i,
-                                                                    filtered_times=filtered_times,
+                                                                    filtered_data_coordinates=filtered_data_coordinates,
                                                                     spline_old=q_pl, verbose=verbose)
                     print(idx, i, error_new)
                     diff = np.average(np.abs(filtered_obs_new - filtered_obs_old)) / np.average(
-                        np.abs(self.observed_time_series[idx, time_start_idx:time_end_idx + 1]))
+                        np.abs(self.observed_data[idx, start_idx:end_idx + 1]))
                     if diff < tol:
                         break
                     else:
@@ -700,41 +698,41 @@ class LUQ_temporal(LUQ):
             if 'filtered_obs' in self.__dict__.keys():
                 filtered_obs = self.filtered_obs
             else:
-                filtered_obs = self.observed_time_series
+                filtered_obs = self.observed_data
             self.filtered_obs = filtered_obs
 
         # filtering predictions
         if filter_predictions:
-            self.info['pred_filtering_params'] = {'time_start_idx': time_start_idx,
-                                                  'time_end_idx': time_end_idx,
+            self.info['pred_filtering_params'] = {'start_idx': start_idx,
+                                                  'end_idx': end_idx,
                                                   'num_filtered_obs': num_filtered_obs,
                                                   'tol': tol,
                                                   'min_knots': min_knots,
                                                   'max_knots': max_knots}
             # Use _old and _new to compare to tol and determine when to stop adding knots
             # Compute _old before looping and then i=i+1
-            num_predictions = self.predicted_time_series.shape[0]
+            num_predictions = self.predicted_data.shape[0]
             self.filtered_predictions = np.zeros((num_predictions, num_filtered_obs))
             for idx in range(num_predictions):
-                filtered_predictions_old, error_old, q_pl = linear_c0_spline(times=times, 
-                                                                            data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
+                filtered_predictions_old, error_old, q_pl = linear_c0_spline(data_coordinates=data_coordinates, 
+                                                                            data=self.predicted_data[idx, start_idx:end_idx + 1],
                                                                             num_knots=min_knots,
-                                                                            filtered_times=filtered_times,
+                                                                            filtered_data_coordinates=filtered_data_coordinates,
                                                                             verbose=verbose)
                 i = min_knots + 1
                 while i <= max_knots:
-                    filtered_predictions_new, error_new, q_pl = linear_c0_spline(times=times, 
-                                                                                data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
+                    filtered_predictions_new, error_new, q_pl = linear_c0_spline(data_coordinates=data_coordinates, 
+                                                                                data=self.predicted_data_coordinates[idx, start_idx:end_idx + 1],
                                                                                 num_knots=i,
-                                                                                filtered_times=filtered_times,
+                                                                                filtered_data_coordinates=filtered_data_coordinates,
                                                                                 spline_old=q_pl,
                                                                                 verbose=verbose)
 
                     # After an _old and a _new is computed (when i>min_knots)
                     print(idx, i, error_new)
                     diff = np.average(np.abs(filtered_predictions_new - filtered_predictions_old)) / \
-                        np.average(np.abs(self.predicted_time_series[idx,
-                                                                    time_start_idx:time_end_idx + 1]))
+                        np.average(np.abs(self.predicted_data[idx,
+                                                                    start_idx:end_idx + 1]))
                     if diff < tol:
                         break
                     else:
@@ -755,7 +753,7 @@ class LUQ_temporal(LUQ):
             if 'filtered_predictions' in self.__dict__.keys():
                 filtered_predictions = self.filtered_predictions
             else:
-                filtered_predictions = self.predicted_time_series
+                filtered_predictions = self.predicted_data
             self.filtered_predictions = filtered_predictions
     
         super().__init__(filtered_predictions=self.filtered_predictions,
@@ -763,9 +761,9 @@ class LUQ_temporal(LUQ):
 
     def filter_data_tol(
             self,
-            times,
-            time_start_idx,
-            time_end_idx,
+            data_coordinates,
+            start_idx,
+            end_idx,
             num_filtered_obs,
             tol,
             min_knots=3,
@@ -774,13 +772,13 @@ class LUQ_temporal(LUQ):
             filter_predictions=True,
             filter_observations=True):
         """
-        Filter observed and predicted time series data so that the mean l1 error is within a tolerance.
-        :param times: points in time for time series
-        :type times: :class:`numpy.ndarray`
-        :param time_start_idx: first time index to filter
-        :type time_start_idx: int
-        :param time_end_idx: last time index to filter
-        :type time_end_idx: int
+        Filter observed and predicted data so that the mean l1 error is within a tolerance.
+        :param data_coordinates: data coordinates at which data is collected
+        :type data_coordinates: :class:`numpy.ndarray`
+        :param start_idx: first data_coordinates index to filter
+        :type start_idx: int
+        :param end_idx: last data_coordinates index to filter
+        :type end_idx: int
         :param num_filtered_obs: number of filtered observations to make
         :type num_filtered_obs: int
         :param tol: tolerance for constructing splines
@@ -791,8 +789,6 @@ class LUQ_temporal(LUQ):
         :type max_knots: int
         :param verbose: display termination reports
         :type verbose: bool
-        :return: arrays of filtered predictions, filtered observations, and filtered times
-        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
         :param filter_predictions: check if predictions should be filtered
         :type filter_predictions: bool
         :param filter_observations: check if observations should be filtered
@@ -800,33 +796,33 @@ class LUQ_temporal(LUQ):
         """
 
         # Checking if necessary data is provided
-        if self.predicted_time_series is None and filter_predictions:
-            print('No predicted data to filter. Set predicted_time_series for filtering.')
+        if self.predicted_data is None and filter_predictions:
+            print('No predicted data to filter. Set predicted_data for filtering.')
             filter_predictions = False
-        if self.observed_time_series is None and filter_observations:
-            print('No observed data to filter. Set observed_time_series for filtering.')
+        if self.observed_data is None and filter_observations:
+            print('No observed data to filter. Set observed_data for filtering.')
             filter_observations = False
 
-        self.times = times
-        times = self.times[time_start_idx:time_end_idx + 1]
-        filtered_times = np.linspace(
-            self.times[time_start_idx],
-            self.times[time_end_idx],
+        self.data_coordinates = data_coordinates
+        data_coordinates = self.data_coordinates[start_idx:end_idx + 1]
+        filtered_data_coordinates = np.linspace(
+            self.data_coordinates[start_idx],
+            self.data_coordinates[end_idx],
             num_filtered_obs)
-        self.filtered_times = filtered_times
+        self.filtered_data_coordinates = filtered_data_coordinates
         
         # filtering observations
         if filter_observations:
-            num_obs = self.observed_time_series.shape[0]
+            num_obs = self.observed_data.shape[0]
             self.filtered_obs = np.zeros((num_obs, num_filtered_obs))
             for idx in range(num_obs):
                 i = min_knots
                 q_pl_old = None
                 while i <= max_knots:
-                    filtered_obs, error, q_pl = linear_c0_spline(times, 
-                                                                data=self.observed_time_series[idx, time_start_idx:time_end_idx + 1],
+                    filtered_obs, error, q_pl = linear_c0_spline(data_coordinates, 
+                                                                data=self.observed_data[idx, start_idx:end_idx + 1],
                                                                 num_knots=i,
-                                                                filtered_times=filtered_times,
+                                                                filtered_data_coordinates=filtered_data_coordinates,
                                                                 spline_old=q_pl_old)
                     # After an _old and a _new is computed (when i>min_knots)
                     print(idx, i, error)
@@ -846,20 +842,20 @@ class LUQ_temporal(LUQ):
             if 'filtered_obs' in self.__dict__.keys():
                 filtered_obs = self.filtered_obs
             else:
-                filtered_obs = self.observed_time_series
+                filtered_obs = self.observed_data
             self.filtered_obs = filtered_obs
 
         if filter_predictions:
-            num_predictions = self.predicted_time_series.shape[0]
+            num_predictions = self.predicted_data.shape[0]
             self.filtered_predictions = np.zeros((num_predictions, num_filtered_obs))
             for idx in range(num_predictions):
                 i = min_knots
                 q_pl_old = None
                 while i <= max_knots:
-                    filtered_predictions, error, q_pl = linear_c0_spline(times=times, 
-                                                                        data=self.predicted_time_series[idx, time_start_idx:time_end_idx + 1],
+                    filtered_predictions, error, q_pl = linear_c0_spline(data_coordinates=data_coordinates, 
+                                                                        data=self.predicted_data[idx, start_idx:end_idx + 1],
                                                                         num_knots=i,
-                                                                        filtered_times=filtered_times,
+                                                                        filtered_data_coordinates=filtered_data_coordinates,
                                                                         spline_old=q_pl_old)
 
                     # After an _old and a _new is computed (when i>min_knots)
@@ -880,15 +876,15 @@ class LUQ_temporal(LUQ):
             if 'filtered_predictions' in self.__dict__.keys():
                 filtered_predictions = self.filtered_predictions
             else:
-                filtered_predictions = self.predicted_time_series
+                filtered_predictions = self.predicted_data
             self.filtered_predictions = filtered_predictions
 
         super().__init__(filtered_predictions=self.filtered_predictions,
                          filtered_obs=self.filtered_obs)  
 
-class LUQ_spatial(LUQ):
+class LUQ_rbfs(LUQ):
     '''
-    Sub-class of LUQ for filtering spatial data. LUQ super-class instatiated after data is filtered.
+    Sub-class of LUQ for filtering high dimensional data using Gaussian as radial basis functions (RBFs). LUQ super-class instatiated after data is filtered.
     '''
 
     def __init__(self, 
@@ -897,9 +893,9 @@ class LUQ_spatial(LUQ):
                  predicted_data=None, 
                  observed_data=None):
         '''
-        :param predicted_data: predicted spatial data at predicted_data_coordinates
+        :param predicted_data: predicted data at predicted_data_coordinates
         :type predicted_data: :class:'numpy.ndarray'
-        :param observed_data: observed spatial data at observed_data_coordinates or predicted_data_coordinates if observed_data_coordinates=None
+        :param observed_data: observed data at observed_data_coordinates
         :type observed_data: :class:'numpy.ndarray'
         :param predicted_data_coordinates: spatial coordinates of predicted_data
         :type predicted_data_coordinates: :class:'numpy.ndarray'
