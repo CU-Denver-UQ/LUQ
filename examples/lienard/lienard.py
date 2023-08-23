@@ -43,7 +43,7 @@ with_noise = False
 noise_stdev = 0.05
 
 if with_noise:
-    observed_time_series += noise_stdev * np.random.randn(num_obs)
+    observed_time_series += noise_stdev * np.random.randn(num_obs, times.shape[0])
 
 # import matplotlib.pyplot as plt
 # plt.figure()
@@ -57,15 +57,22 @@ if with_noise:
 # plt.show()
 
 # Use LUQ to learn dynamics and QoIs
-learn = LUQ_temporal(predicted_time_series, observed_time_series, times)
+learn = LUQ(predicted_data=predicted_time_series, 
+            observed_data=observed_time_series)
 
 # time array indices over which to use
 time_start_idx = 350
 time_end_idx = 499
 
 # Filter data
-learn.filter_data(time_start_idx=time_start_idx, time_end_idx=time_end_idx,
-                  num_filtered_obs=50, tol=3.0e-2, min_knots=15, max_knots=40)
+learn.filter_data(filter_method='splines',
+                  data_coordinates=times,
+                  start_idx=time_start_idx, 
+                  end_idx=time_end_idx,
+                  num_filtered_obs=50, 
+                  tol=3.0e-2, 
+                  min_knots=15, 
+                  max_knots=40)
 learn.dynamics(
     cluster_method='spectral',
     kwargs={
