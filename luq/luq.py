@@ -57,6 +57,13 @@ class LUQ(object):
     def filter_data(self,
                     filter_method,
                     **kwargs):
+        '''
+        Wrapper filtering function. Uses either filter_data_splines, filter_data_splines_tol, or filter_data_rbfs based on filter_method parameter.
+        :param filter_method: controls which filtering method is used. Either 'splines', 'splines_tol', or 'rbfs'
+        :type filter_method: string
+        :return: arrays of filtered predictions, filtered observations, and filtered data coordinates. If using splines, also returnes filtered data coordinates
+        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
+        '''
         if filter_method == 'splines' or filter_method == 'spline':
             self.info['filtering_method'] = 'splines'
             self.filter_data_splines(**kwargs)
@@ -107,7 +114,7 @@ class LUQ(object):
         :type filter_predictions: bool
         :param filter_observations: check if observations should be filtered
         :type filter_observations: bool
-        :return: arrays of filtered predictions, filtered observations, and filtered data coordinates
+        :return: arrays of filtered predictions and filtered observations
         :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
         """
 
@@ -346,8 +353,33 @@ class LUQ(object):
                          filter_predictions=True,
                          filter_observations=True):
         '''
-        :return: arrays of filtered predictions and filtered observations
-        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`
+        filters data by fitting weighted sum of Gaussians with optional polynomial
+        :param filtered_data_coordinates: coordinates at which resulting fitted function is evaluated
+        :type filtered_data_coordinates: :class:'numpy.ndarray'
+        :param num_rbf_list: list of number of rbfs to fit
+        :type num_rbf_list: int, list, or range
+        :param remove_trend: controls whether a polynomial trend should be removed prior to fitting. If False, data is shifted to have mean of 0
+        :type remove_trend: bool
+        :param add_poly: controls if polynomial is added to weighted sum of rbfs in model function
+        :type add_poly: bool
+        :param poly_deg: degree of polynomial for polynomial trend and/or polynomial part of model function
+        :type poly_deg: int
+        :param initializer: Gaussian location initialization method. Must be either 'Halton', 'kmeans', 'uniform_random', or 'all'
+        :type initializer: string
+        :param max_opt_count: maximum number of opimization attempts per sample per num_rbfs
+        :type max_opt_count: int
+        :param tol: relative error tolerance that control whether to keep fit or move to next num_rbfs in num_rbf_list
+        :type tol: float
+        :param predicted_data_coordinates: coordinates at which predicted data is collected
+        :type predicted_data_coordinates: :class:'numpy.ndarray'
+        :param observed_data_coordinates: coordinates at which observed data is collected
+        :type observed_data_coordinates: :class:'numpy.ndarray'
+        :param filter_predictions: controls whether predicted data is filtered
+        :type filter_predictions: bool
+        :param filter_observations: controls whether observed data is filtered
+        :type filter_observations: bool
+        :return: returns filtered predictions and filtered observations
+        :rtype: :class:'numpy.ndarray', :class:'numpy.ndarray'
         '''
         
         self.filtered_data_coordinates = filtered_data_coordinates
@@ -951,6 +983,11 @@ class LUQ(object):
         
     def save_instance(self,
                       file_path):
+        '''
+        pickles current instance of LUQ
+        :param file_path: file path
+        :type file_path: string
+        '''
         import pickle
         pf = open(file_path, 'wb')
         pickle.dump(self, pf)

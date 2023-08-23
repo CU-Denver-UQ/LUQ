@@ -130,6 +130,16 @@ class RBFFit(object):
             rs):
         '''
         Calculates sum of Gaussians at x as weights[i]*exp(-sum((x-rs[i])^2/sigmas[i])).
+        :param x: varialbe to evaluate weighted sum of Gaussians
+        :type x: array-like of shape (number_of_inputs,dimensions)
+        :param weights: weights for sum of Gaussians
+        :type weights: 1-dimensional array-like of shape (number_of_rbfs,)
+        :param sigmas: shape parameter for Gaussians
+        :type sigmas: array-like of shape (number_of_rbfs,dimension)
+        :param rs: Gaussian locations
+        :type rs: :class:`numpy.ndarray` of shape (number_of_rbfs,dimension)
+        :return: evaluated weighted sum of Gaussians
+        :rtype: :class:`numpy.ndarray` of shape (number_of_inputs)
         '''
         # x.shape = (data, dim)
         # weights.shape = (N,) 
@@ -144,7 +154,13 @@ class RBFFit(object):
                                        input, 
                                        scale=False):
         '''
-        calculates matrix of columns corresponding to input variables raised to powers given by self.powers.
+        calculates matrix of columns corresponding to input variables raised to powers given by self.powers
+        :param input: input values
+        :type input: array-like of shape (number_of_inputs,dimension)
+        :param scale: controls if input needs scaling
+        :type scale: bool
+        :return: global design matrix for polynomial of inputs with degrees in self.powers
+        :rtype: :class:`numpy.ndarray`
         '''
         # scaling input data if unscaled
         if scale:
@@ -166,6 +182,12 @@ class RBFFit(object):
              coeffs):
         '''
         evaluates polynomial at x with input variables raised to powers given by self.powers
+        :param x: inputs
+        :type x: array-like of shape (number_of_inputs,dimension)
+        :param coeffs: polynomial coefficients
+        :type coeffs: array-like of shape (len(self.powers),)
+        :return polynomial with coefficients coeffs evaluated at x
+        :rtype: :class:`numpy.ndarray`
         '''
         A = self.construct_global_design_matrix(x)
         return np.matmul(A, coeffs)
@@ -176,6 +198,12 @@ class RBFFit(object):
         '''
         takes flattened list of params of form (weights.flatten(),sigmas.flatten(),rs.flatten()) a returns weights, sigmas, and rs of shapes N, (N,dim) 
         and (N,dim) respectively; N represents number of RBFs used. Flattening parameters is necessary for optimization package used.
+        :param params: flattened array of weights, sigmas, rs, and if using polynomials, then coeffs as well
+        :type params: array-like
+        :param N: number of rbfs used
+        :type N: int
+        :return: unpacked parameters
+        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray` and optional :class:`numpy.ndarray`
         '''
         # initializing weights, sigmas, and rs
         weights = params[0:N]
@@ -202,6 +230,14 @@ class RBFFit(object):
                            coeffs=None):
         '''
         unscales sigmas and rs according taccording to how the input data was scaledo how the input data was scaled
+        :param sigmas: sigma values for rbfs
+        :type sigmas: array-like
+        :param rs: rbf locations
+        :type rs: array-like
+        :param coeffs: polynomial coefficients
+        :type coeffs: array-like
+        :return: returns same parameters unscaled
+        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, and optional :class:`numpy.ndarray`
         '''
         # unscaling sigmas and rs by dimension
         for d in range(self.dim):
@@ -224,6 +260,14 @@ class RBFFit(object):
                          *args):
         '''
         function inputted into optimization package scipy.optimize.curve_fit
+        :param xdata: input data from optimize method
+        :type xdata: array-like
+        :param N: number of rbfs used
+        :type N: int
+        :param *args: flattened array of weights, sigmas, rs, and if using polynomials, then coeffs also
+        :type *args: 1-dimesnional array-like
+        :return: returns model evaluated at xdata
+        :rtype: :class:`numpy.ndarray`
         '''
         # xdata.shape = (data, dim)
         # N = num_rbfs
@@ -242,6 +286,14 @@ class RBFFit(object):
                        num_rbf_list_idx):
         '''
         calculates and returns initialization of locations of Gaussians using either uniform random sampling, Halton sampling, or k-means or returns previously calculated initialization
+        :param current_initializer: current Gaussian location initialization method
+        :type current_initializer: string
+        :param num_rbfs: number of rbfs
+        :type num_rbfs: int
+        :param num_rbf_list_idx: index in num_rbf_list
+        :type num_rbf_list_idx: int
+        :return: intial Gaussian locations for optimizer
+        :rtype: :class:`numpy.ndarray`
         '''
         if current_initializer == 'uniform_random':
             if self.loc_initials[current_initializer][num_rbf_list_idx] is None:
@@ -285,6 +337,18 @@ class RBFFit(object):
                           ps_poly=None):
         '''
         initializing weights, sigmas, and rs for sum of Gaussians and coefficients of added polynomial if self.add_poly=True
+        :param current_initializer: current Gaussian location initialization method
+        :type current_initializer: string
+        :param num_rbfs: number of rbfs
+        :type num_rbfs: int
+        :param num_rbf_list_idx: index in num_rbf_list
+        :type num_rbf_list_idx: int
+        :param output_data_abs_max: absolute max of data
+        :type output_data_abs_max: float
+        :param ps_poly: initial polynomial coefficients
+        :type ps_poly: :class:'numpy.ndarray'
+        :return: initial values for weights, sigmas, rs, and if polynomials are used, then coefficients also
+        :rtype: list
         '''
         # initialize weights
         p0 = num_rbfs * [output_data_abs_max]
@@ -303,6 +367,12 @@ class RBFFit(object):
         construction parameter bounds for optimization. weights are bounded by the absolute value of data max, sigmas below by 1e-6, 
         rs below by 0 and above by 1 (input data is scaled to be between 0 and 1). If self.add_poly=True, coefficients of added polynomial
         are unbounded
+        :param num_rbfs: number of rbfs
+        :type num_rbfs: int
+        :param output_data_abs_max: absolute max of data 
+        :type output_data_abs_max: float
+        :return: parameter bounds
+        :rtype: list of 2-element lists
         '''
         # initializing bounds of appropriate size
         if self.add_poly:
@@ -329,6 +399,10 @@ class RBFFit(object):
                           output_data):
         '''
         function for removing polynomial trend
+        :param output_data: data to remove polynomial trend from
+        :type output_data: :class:'numpy.ndarray'
+        :return: coefficients of polynomial trend and residuals
+        :rtype: :class:'numpy.ndarray', :class:'numpy.ndarray'
         '''
         ps, _, _, _ = lstsq(self.A_orig, output_data)
         res = output_data - np.matmul(self.A_orig, ps)
@@ -347,6 +421,28 @@ class RBFFit(object):
                        max_nfev=None):
         '''
         fit parameters using scipy.optimize.curve_fit
+        :param output_data: data corresponding to function outputs
+        :type output_data; :class:'numpy.ndarray'
+        :param output_data_shifted: same as output_data but with polynomial trend subtracted off
+        :type output_data_shifted: :class:'numpy.ndarray'
+        :param output_data_abs_max: maximum of absolute value of output_data
+        :type output_data_abs_max: float
+        :param num_rbfs: number of rbfs used
+        :type num_rbfs: int
+        :param param_bounds: parameter bounds for optimizer
+        :type param_bounds: list
+        :param initialzer: Gaussian location initialization method
+        :type initializer: string
+        :param num_rbf_list_idx: current index in num_rbf_list
+        :type num_rbf_list_idx: int
+        :param ps_trend: polynomial trend coefficients
+        :type ps_trend: :class:'numpy.ndarray'
+        :param ps_poly: initial polynomial coefficients for model function
+        :type ps_poly: :class:'numpy.ndarray'
+        :param max_nfev: maximum number of function evaluation parameter for scipy.optimize.least_squares
+        :type max_nfev: float
+        :return: returns errors and fitted parameters or None if optimization failed
+        :rtype: tuple or None
         '''
         # try-except for scipy.optimize.curve_fit RuntimeError for optimization failure or for scipy.optimize.least_squares LinAlgError
         try:
@@ -410,6 +506,29 @@ class RBFFit(object):
         both n and reshape_filtered_data are only used for print statements that are currently commented out. n is used for print statements about optimization 
         loop updates if filtering multiple samples at once; reshape_filtered_data used to distinguish between print statements with n and without (only a single 
         sample being filtered at one time means n is always 0)
+
+        :param num_rbfs: number of rbfs used
+        :type num_rbfs: int
+        :param output_data: data corresponding to function outputs
+        :type output_data; :class:'numpy.ndarray'
+        :param output_data_shifted: same as output_data but with polynomial trend subtracted off
+        :type output_data_shifted: :class:'numpy.ndarray'
+        :param ps_trend: polynomial trend coefficients
+        :type ps_trend: :class:'numpy.ndarray'
+        :param ps_poly: initial polynomial coefficients for model function
+        :type ps_poly: :class:'numpy.ndarray'
+        :param n: current sample index
+        :type n: int
+        :param max_opt_count: maximum number of optimization attempts
+        :type max_opt_count: int
+        :param initialzer: Gaussian location initialization method
+        :type initializer: string
+        :param num_rbf_list_idx: current index in num_rbf_list
+        :type num_rbf_list_idx: int
+        :param reshape_filter_data: keeping track of whether data was reshaped and needs to be reshaped back after fitting
+        :type reshape_filter_data: bool
+        :return: returns errors and fitted parameters or None if optimization failed
+        :rtype: float, :class:'numpy.ndarray'
         '''
         # set up parameter list; if lists have length >1 after sucessful optimization, then parameters corresponding to minimum error are used
         errors = []
@@ -570,6 +689,20 @@ class RBFFit(object):
                     verbose=False):
         '''
         loop for fitting parameters and returning filtered fitted data at filtered_input_data
+        :param output_data_samples: output data to fit parameters to
+        :type output_data_samples: :class:'numpy.ndarray'
+        :param num_rbf_list: list of number of rbfs to fit
+        :type num_rbf_list: int, list, or range
+        :param initialzer: Gaussian location initialization method
+        :type initializer: string
+        :param max_opt_count: maximum number of optimization attempts
+        :type max_opt_count: int
+        :param tol: error tolerance that controls whether to move to next num_rbfs in num_rbfs_list
+        :type tol: float
+        :param verbose: controls if there are print statements
+        :type verbose: bool
+        :return: filtered data
+        :type: :class:'numpy.ndarray'
         '''
         # if num_rbf_list is not a list or range, it is assumed to be an int meaning only a specific number of rbfs is fitted
         if not (isinstance(num_rbf_list, list) or isinstance(num_rbf_list, range)):
