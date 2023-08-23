@@ -108,7 +108,8 @@ param_range = np.array([[0.75, 3.0]])
 param_labels = [r'$a$']
 
 # Use LUQ to learn dynamics and QoIs
-learn = LUQ_temporal(predicted_time_series, observed_time_series, times)
+learn = LUQ(predicted_data=predicted_time_series, 
+            observed_data=observed_time_series)
 
 # time array indices over which to use
 time_start_idx = 0
@@ -116,8 +117,10 @@ time_end_idx = 499
 
 # Filter data with piecewise constant linear splines
 learn.filter_data(
-    time_start_idx=time_start_idx,
-    time_end_idx=time_end_idx,
+    filter_method='splines',
+    data_coordinates=times,
+    start_idx=time_start_idx,
+    end_idx=time_end_idx,
     num_filtered_obs=500,
     tol=0.5 * noise_stdev,
     min_knots=3,
@@ -131,9 +134,9 @@ chosen_obs = [1, 3, 6]  #
 colors = ['r', 'g', 'b']
 
 for i, c in zip(chosen_obs, colors):
-    plt.plot(learn.times[time_start_idx:time_end_idx + 1],
-             learn.observed_time_series[i,
-                                        time_start_idx:time_end_idx + 1],
+    plt.plot(learn.data_coordinates[time_start_idx:time_end_idx + 1],
+             learn.observed_data[i,
+                                 time_start_idx:time_end_idx + 1],
              color=c,
              linestyle='none',
              marker='.',
@@ -143,8 +146,8 @@ for i, c in zip(chosen_obs, colors):
 for i in chosen_obs:
     num_i_knots = int(0.5 * (2 + len(learn.obs_knots[i])))
     knots = np.copy(learn.obs_knots[i][num_i_knots:])
-    knots = np.insert(knots, 0, learn.filtered_times[0])
-    knots = np.append(knots, learn.filtered_times[-1])
+    knots = np.insert(knots, 0, learn.filtered_data_coordinates[0])
+    knots = np.append(knots, learn.filtered_data_coordinates[-1])
     plt.plot(knots,
              learn.obs_knots[i][:num_i_knots],
              'k',
@@ -161,9 +164,9 @@ plt.show()
 fig = plt.figure(figsize=(10, 8))
 
 for i, c in zip(chosen_obs, colors):
-    plt.plot(learn.times[time_start_idx:time_end_idx + 1],
-             learn.observed_time_series[i,
-                                        time_start_idx:time_end_idx + 1],
+    plt.plot(learn.data_coordinates[time_start_idx:time_end_idx + 1],
+             learn.observed_data[i,
+                                 time_start_idx:time_end_idx + 1],
              color=c,
              linestyle='none',
              marker='.',
@@ -171,7 +174,7 @@ for i, c in zip(chosen_obs, colors):
              alpha=0.25)
 
 for i in chosen_obs:
-    plt.plot(learn.filtered_times,
+    plt.plot(learn.filtered_data_coordinates,
              learn.filtered_obs[i,
                              :],
              'k',
@@ -185,13 +188,13 @@ plt.title('Generating Filtered Data')
 plt.show()
 
 # # Plot clusters of predicted time series
-num_filtered_obs = learn.filtered_times.shape[0]
+num_filtered_obs = learn.filtered_data_coordinates.shape[0]
 for j in range(learn.num_clusters):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(
         24, 8), gridspec_kw={'width_ratios': [1, 1]})
     ax1.scatter(
         np.tile(
-            learn.filtered_times,
+            learn.filtered_data_coordinates,
             num_samples).reshape(
             num_samples,
             num_filtered_obs),
@@ -201,7 +204,7 @@ for j in range(learn.num_clusters):
         marker='.',
         alpha=0.2)
     idx = np.where(learn.predict_labels == j)[0]
-    ax1.scatter(np.tile(learn.filtered_times,
+    ax1.scatter(np.tile(learn.filtered_data_coordinates,
                         len(idx)).reshape(len(idx),
                                           num_filtered_obs),
                 learn.filtered_predictions[idx,
@@ -211,7 +214,7 @@ for j in range(learn.num_clusters):
                 marker='o',
                 alpha=0.2)
     idx2 = np.where(learn.obs_labels == j)[0]
-    ax1.scatter(np.tile(learn.filtered_times, len(idx2)).reshape(len(idx2), num_filtered_obs),
+    ax1.scatter(np.tile(learn.filtered_data_coordinates, len(idx2)).reshape(len(idx2), num_filtered_obs),
                 learn.filtered_obs[idx2, :], 50, c='r', marker='s', alpha=0.2)
     ax1.set(title='Cluster ' + str(j + 1) + ' in data')
     ax1.set_xlabel('$t$')
@@ -427,16 +430,19 @@ if with_noise:
         np.random.randn(num_obs2, times.shape[0])
 
 # Use LUQ to learn dynamics and QoIs
-learn2 = LUQ_temporal(predicted_time_series2, observed_time_series2, times)
+learn2 = LUQ(predicted_data=predicted_time_series2, 
+             observed_data=observed_time_series2)
 
 # time array indices over which to use
 time_start_idx = 250
 time_end_idx = 749
 
 # Filter data with piecewise constant linear splines
-learn2.filter_data_tol(
-    time_start_idx=time_start_idx,
-    time_end_idx=time_end_idx,
+learn2.filter_data(
+    filter_method='splines_tol',
+    data_coordinates=times,
+    start_idx=time_start_idx,
+    end_idx=time_end_idx,
     num_filtered_obs=500,
     tol=0.5 * noise_stdev,
     min_knots=3,
@@ -450,13 +456,13 @@ learn2.dynamics(
         'n_init': 10})
 
 # # Plot clusters of predicted time series
-num_filtered_obs2 = learn2.filtered_times.shape[0]
+num_filtered_obs2 = learn2.filtered_data_coordinates.shape[0]
 for j in range(learn2.num_clusters):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(
         24, 8), gridspec_kw={'width_ratios': [1, 1]})
     ax1.scatter(
         np.tile(
-            learn2.filtered_times,
+            learn2.filtered_data_coordinates,
             num_samples).reshape(
             num_samples,
             num_filtered_obs2),
@@ -466,7 +472,7 @@ for j in range(learn2.num_clusters):
         marker='.',
         alpha=0.2)
     idx = np.where(learn2.predict_labels == j)[0]
-    ax1.scatter(np.tile(learn2.filtered_times,
+    ax1.scatter(np.tile(learn2.filtered_data_coordinates,
                         len(idx)).reshape(len(idx),
                                           num_filtered_obs2),
                 learn2.filtered_predictions[idx,
@@ -476,7 +482,7 @@ for j in range(learn2.num_clusters):
                 marker='o',
                 alpha=0.2)
     idx2 = np.where(learn2.obs_labels == j)[0]
-    ax1.scatter(np.tile(learn2.filtered_times, len(idx2)).reshape(len(idx2), num_filtered_obs),
+    ax1.scatter(np.tile(learn2.filtered_data_coordinates, len(idx2)).reshape(len(idx2), num_filtered_obs),
                 learn2.filtered_obs[idx2, :], 50, c='r', marker='s', alpha=0.2)
     ax1.set(title='Cluster ' + str(j + 1) + ' in data')
     ax1.set_xlabel('$t$')
@@ -567,13 +573,13 @@ for i in range(params.shape[1]):
                      param_range[i, 0], param_range[i, 1], maxiter=1000)
     print(TV_metric)
 
-num_filtered_obs = learn.filtered_times.shape[0]
+num_filtered_obs = learn.filtered_data_coordinates.shape[0]
 for j in range(learn.num_clusters):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(
         24, 8), gridspec_kw={'width_ratios': [1, 1]})
     ax1.scatter(
         np.tile(
-            learn.filtered_times,
+            learn.filtered_data_coordinates,
             num_samples).reshape(
             num_samples,
             num_filtered_obs),
@@ -583,7 +589,7 @@ for j in range(learn.num_clusters):
         marker='.',
         alpha=0.2)
     idx = np.where(learn.predict_labels == j)[0]
-    ax1.scatter(np.tile(learn.filtered_times,
+    ax1.scatter(np.tile(learn.filtered_data_coordinates,
                         len(idx)).reshape(len(idx),
                                           num_filtered_obs),
                 learn.filtered_predictions[idx,
@@ -593,7 +599,7 @@ for j in range(learn.num_clusters):
                 marker='o',
                 alpha=0.2)
     idx2 = np.where(learn.obs_labels == j)[0]
-    ax1.scatter(np.tile(learn.filtered_times, len(idx2)).reshape(len(idx2), num_filtered_obs),
+    ax1.scatter(np.tile(learn.filtered_data_coordinates, len(idx2)).reshape(len(idx2), num_filtered_obs),
                 learn.filtered_obs[idx2, :], 50, c='r', marker='s', alpha=0.2)
     ax1.set(title='Cluster ' + str(j + 1) + ' in data')
     ax1.set_xlabel('$t$')
@@ -602,7 +608,7 @@ for j in range(learn.num_clusters):
 
     ax2.scatter(
         np.tile(
-            learn2.filtered_times,
+            learn2.filtered_data_coordinates,
             num_samples).reshape(
             num_samples,
             num_filtered_obs),
@@ -612,7 +618,7 @@ for j in range(learn.num_clusters):
         marker='.',
         alpha=0.2)
     idx = np.where(learn2.predict_labels == j)[0]
-    ax2.scatter(np.tile(learn2.filtered_times,
+    ax2.scatter(np.tile(learn2.filtered_data_coordinates,
                         len(idx)).reshape(len(idx),
                                           num_filtered_obs),
                 learn2.filtered_predictions[idx,
@@ -622,7 +628,7 @@ for j in range(learn.num_clusters):
                 marker='o',
                 alpha=0.2)
     idx2 = np.where(learn2.obs_labels == j)[0]
-    ax2.scatter(np.tile(learn2.filtered_times, len(idx2)).reshape(len(idx2), num_filtered_obs),
+    ax2.scatter(np.tile(learn2.filtered_data_coordinates, len(idx2)).reshape(len(idx2), num_filtered_obs),
                 learn2.filtered_obs[idx2, :], 50, c='r', marker='s', alpha=0.2)
     ax2.set(title='Cluster ' + str(j + 1) + ' in data')
     ax2.set_xlabel('$t$')
