@@ -100,12 +100,17 @@ learn = LUQ(predicted_data=predicted_time_series,
 time_start_idx = 0
 time_end_idx = len(times) - 1  # 150 #120
 
-# Filter data
+num_filtered_obs = 20
+
+filtered_times = np.linspace(times[time_start_idx],
+                             times[time_end_idx],
+                             num_filtered_obs)
+
+# Filter data with piecewise linear splines
 learn.filter_data(filter_method='splines',
-                  data_coordinates=times,
-                  start_idx=time_start_idx, 
-                  end_idx=time_end_idx,
-                  num_filtered_obs=20, 
+                  predicted_data_coordinates=times,
+                  observed_data_coordinates=times,
+                  filtered_data_coordinates=filtered_times,
                   tol=5.0e-2, 
                   min_knots=3, 
                   max_knots=12)
@@ -120,7 +125,7 @@ chosen_obs = [0, 1, 499]
 colors = ['r', 'g', 'b']
 
 for i, c in zip(chosen_obs, colors):
-    plt.plot(learn.data_coordinates[time_start_idx:time_end_idx + 1],
+    plt.plot(learn.observed_data_coordinates[time_start_idx:time_end_idx + 1],
              learn.observed_data[i,
                                  time_start_idx:time_end_idx + 1],
              color=c,
@@ -150,7 +155,7 @@ plt.show()
 fig = plt.figure(figsize=(10, 8))
 
 for i, c in zip(chosen_obs, colors):
-    plt.plot(learn.data_coordinates[time_start_idx:time_end_idx + 1],
+    plt.plot(learn.observed_data_coordinates[time_start_idx:time_end_idx + 1],
              learn.observed_data[i,
                                  time_start_idx:time_end_idx + 1],
              color=c,

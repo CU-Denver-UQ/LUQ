@@ -64,15 +64,21 @@ learn = LUQ(predicted_data=predicted_time_series,
 time_start_idx = 350
 time_end_idx = 499
 
-# Filter data
+num_filtered_obs = 50
+
+filtered_times = np.linspace(times[time_start_idx],
+                             times[time_end_idx],
+                             num_filtered_obs)
+
+# Filter data with piecewise linear splines
 learn.filter_data(filter_method='splines',
-                  data_coordinates=times,
-                  start_idx=time_start_idx, 
-                  end_idx=time_end_idx,
-                  num_filtered_obs=50, 
+                  predicted_data_coordinates=times,
+                  observed_data_coordinates=times,
+                  filtered_data_coordinates=filtered_times,
                   tol=3.0e-2, 
                   min_knots=15, 
                   max_knots=40)
+
 learn.dynamics(
     cluster_method='spectral',
     kwargs={
