@@ -43,8 +43,7 @@ class LUQ(object):
         self.scalers = []
         self.r = None
 
-        self.info = {'filtering_method': None,
-                    'pred_filtering_params': None,
+        self.info = {'pred_filtering_params': None,
                     'obs_filtering_params': None,
                     'clustering_method': None,
                     'num_clusters': None,
@@ -57,14 +56,18 @@ class LUQ(object):
     def filter_data(self,
                     filter_method,
                     **kwargs):
+        '''
+        Wrapper filtering function. Uses either filter_data_splines, filter_data_splines_tol, or filter_data_rbfs based on filter_method parameter.
+        :param filter_method: controls which filtering method is used. Either 'splines', 'splines_tol', or 'rbfs'
+        :type filter_method: string
+        :return: arrays of filtered predictions, filtered observations, and filtered data coordinates. If using splines, also returnes filtered data coordinates
+        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
+        '''
         if filter_method == 'splines' or filter_method == 'spline':
-            self.info['filtering_method'] = 'splines'
             self.filter_data_splines(**kwargs)
         elif filter_method == 'splines_tol' or filter_method == 'spline_tol':
-            self.info['filtering_method'] = 'splines_tol'
             self.filter_data_splines_tol(**kwargs)
         elif filter_method == 'rbfs' or filter_method == 'rbf':
-            self.info['filtering_method'] = 'rbfs'
             self.filter_data_rbfs(**kwargs)
         else:
             if len(self.data_coordinates) == 1:
@@ -75,26 +78,19 @@ class LUQ(object):
             
     def filter_data_splines(
             self,
-            data_coordinates,
-            start_idx,
-            end_idx,
-            num_filtered_obs,
+            filtered_data_coordinates,
             tol,
             min_knots=3,
             max_knots=100,
             verbose=False,
+            predicted_data_coordinates=None,
+            observed_data_coordinates=None,
             filter_predictions=True,
             filter_observations=True):
         """
         Filter observed and predicted data so that difference between iterations is within tolerance.
-        :param data_coordinates: data coordinates at which data is collected
-        :type data_coordinates: :class:`numpy.ndarray`
-        :param start_idx: first data_coordinate index to filter
-        :type start_idx: int
-        :param end_idx: last data_coordinate index to filter
-        :type end_idx: int
-        :param num_filtered_obs: number of filtered observations to make
-        :type num_filtered_obs: int
+        :param filtered_data_coordinates: data coordinates at which filtered data is computed
+        :type filtered_data_coordinates: :class:`numpy.ndarray`
         :param tol: tolerance for constructing splines
         :type tol: float
         :param min_knots: maximum number of knots allowed
@@ -103,14 +99,21 @@ class LUQ(object):
         :type max_knots: int
         :param verbose: display termination reports
         :type verbose: bool
+        :param predicted_data_coordinates: coordinates at which predicted data is collected
+        :type predicted_data_coordinates: :class:'numpy.ndarray'
+        :param observed_data_coordinates: coordinates at which observed data is collected
+        :type observed_data_coordinates: :class:'numpy.ndarray'
         :param filter_predictions: check if predictions should be filtered
         :type filter_predictions: bool
         :param filter_observations: check if observations should be filtered
         :type filter_observations: bool
-        :return: arrays of filtered predictions, filtered observations, and filtered data coordinates
-        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
+        :return: arrays of filtered predictions and filtered observations
+        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`
         """
 
+        self.filtered_data_coordinates = filtered_data_coordinates
+        self.predicted_data_coordinates = predicted_data_coordinates
+        self.observed_data_coordinates = observed_data_coordinates
         self.predict_knots = []
         self.obs_knots = []
         
@@ -118,44 +121,36 @@ class LUQ(object):
         if self.observed_data is None and filter_observations:
             print('No observed data to filter. Set observed_data for filtering.')
             filter_observations = False
-
-        self.data_coordinates = data_coordinates
-        data_coordinates = self.data_coordinates[start_idx:end_idx + 1]
-        filtered_data_coordinates = np.linspace(
-            self.data_coordinates[start_idx],
-            self.data_coordinates[end_idx],
-            num_filtered_obs)
-        self.filtered_data_coordinates = filtered_data_coordinates
         
         # filtering observations
         if filter_observations:
-            self.info['obs_filtering_params'] = {'start_idx': start_idx,
-                                                  'end_idx': end_idx,
-                                                  'num_filtered_obs': num_filtered_obs,
-                                                  'tol': tol,
-                                                  'min_knots': min_knots,
-                                                  'max_knots': max_knots}
+            if self.observed_data_coordinates is None:
+                self.observed_data_coordinates = self.filtered_data_coordinates
+
+            self.info['obs_filtering_params'] = {'filter_method': 'splines',
+                                                 'tol': tol,
+                                                 'min_knots': min_knots,
+                                                 'max_knots': max_knots}
             # Use _old and _new to compare to tol and determine when to stop adding knots
             # Compute _old before looping and then i=i+1
             num_obs = self.observed_data.shape[0]
-            self.filtered_obs = np.zeros((num_obs, num_filtered_obs))
+            self.filtered_obs = np.zeros((num_obs, self.filtered_data_coordinates.shape[0]))
             for idx in range(num_obs):
-                filtered_obs_old, error_old, q_pl = linear_c0_spline(data_coordinates=data_coordinates,
-                                                                data=self.observed_data[idx,
-                                                                                        start_idx:end_idx + 1],
+                filtered_obs_old, error_old, q_pl = linear_c0_spline(data_coordinates=self.observed_data_coordinates,
+                                                                data=self.observed_data[idx,:],
                                                                 num_knots=min_knots,
                                                                 filtered_data_coordinates=self.filtered_data_coordinates, 
                                                                 verbose=verbose)
                 i = min_knots + 1
                 while i <= max_knots:
-                    filtered_obs_new, error_new, q_pl = linear_c0_spline(data_coordinates=data_coordinates,
-                                                                    data=self.observed_data[idx, start_idx:end_idx + 1],
+                    filtered_obs_new, error_new, q_pl = linear_c0_spline(data_coordinates=self.observed_data_coordinates,
+                                                                    data=self.observed_data[idx,:],
                                                                     num_knots=i,
                                                                     filtered_data_coordinates=self.filtered_data_coordinates,
                                                                     spline_old=q_pl, verbose=verbose)
                     print(idx, i, error_new)
                     diff = np.average(np.abs(filtered_obs_new - filtered_obs_old)) / np.average(
-                        np.abs(self.observed_data[idx, start_idx:end_idx + 1]))
+                        np.abs(self.observed_data))
                     if diff < tol:
                         break
                     else:
@@ -174,26 +169,27 @@ class LUQ(object):
 
         # filtering predictions
         if filter_predictions:
-            self.info['pred_filtering_params'] = {'start_idx': start_idx,
-                                                  'end_idx': end_idx,
-                                                  'num_filtered_obs': num_filtered_obs,
+            if self.predicted_data_coordinates is None:
+                self.predicted_data_coordinates = self.filtered_data_coordinates
+
+            self.info['pred_filtering_params'] = {'filter_method': 'splines',
                                                   'tol': tol,
                                                   'min_knots': min_knots,
                                                   'max_knots': max_knots}
             # Use _old and _new to compare to tol and determine when to stop adding knots
             # Compute _old before looping and then i=i+1
             num_predictions = self.predicted_data.shape[0]
-            self.filtered_predictions = np.zeros((num_predictions, num_filtered_obs))
+            self.filtered_predictions = np.zeros((num_predictions, self.filtered_data_coordinates.shape[0]))
             for idx in range(num_predictions):
-                filtered_predictions_old, error_old, q_pl = linear_c0_spline(data_coordinates=data_coordinates, 
-                                                                            data=self.predicted_data[idx, start_idx:end_idx + 1],
+                filtered_predictions_old, error_old, q_pl = linear_c0_spline(data_coordinates=self.predicted_data_coordinates, 
+                                                                            data=self.predicted_data[idx,:],
                                                                             num_knots=min_knots,
                                                                             filtered_data_coordinates=self.filtered_data_coordinates,
                                                                             verbose=verbose)
                 i = min_knots + 1
                 while i <= max_knots:
-                    filtered_predictions_new, error_new, q_pl = linear_c0_spline(data_coordinates=data_coordinates, 
-                                                                                data=self.predicted_data[idx, start_idx:end_idx + 1],
+                    filtered_predictions_new, error_new, q_pl = linear_c0_spline(data_coordinates=self.predicted_data_coordinates, 
+                                                                                data=self.predicted_data[idx,:],
                                                                                 num_knots=i,
                                                                                 filtered_data_coordinates=self.filtered_data_coordinates,
                                                                                 spline_old=q_pl,
@@ -202,8 +198,7 @@ class LUQ(object):
                     # After an _old and a _new is computed (when i>min_knots)
                     print(idx, i, error_new)
                     diff = np.average(np.abs(filtered_predictions_new - filtered_predictions_old)) / \
-                        np.average(np.abs(self.predicted_data[idx,
-                                                                    start_idx:end_idx + 1]))
+                        np.average(np.abs(self.predicted_data))
                     if diff < tol:
                         break
                     else:
@@ -220,30 +215,23 @@ class LUQ(object):
                     self.filtered_predictions[idx, :] = filtered_predictions_new
                 self.predict_knots.append(q_pl)
 
-        return self.filtered_predictions, self.filtered_obs, self.filtered_data_coordinates
+        return self.filtered_predictions, self.filtered_obs
          
     def filter_data_splines_tol(
             self,
-            data_coordinates,
-            start_idx,
-            end_idx,
-            num_filtered_obs,
+            filtered_data_coordinates,
             tol,
             min_knots=3,
             max_knots=100,
             verbose=False,
+            predicted_data_coordinates=None,
+            observed_data_coordinates=None,
             filter_predictions=True,
             filter_observations=True):
         """
         Filter observed and predicted data so that the mean l1 error is within a tolerance.
-        :param data_coordinates: data coordinates at which data is collected
-        :type data_coordinates: :class:`numpy.ndarray`
-        :param start_idx: first data_coordinates index to filter
-        :type start_idx: int
-        :param end_idx: last data_coordinates index to filter
-        :type end_idx: int
-        :param num_filtered_obs: number of filtered observations to make
-        :type num_filtered_obs: int
+        :param filtered_data_coordinates: data coordinates at which filtered data is computed
+        :type filtered_data_coordinates: :class:`numpy.ndarray`
         :param tol: tolerance for constructing splines
         :type tol: float
         :param min_knots: maximum number of knots allowed
@@ -252,14 +240,21 @@ class LUQ(object):
         :type max_knots: int
         :param verbose: display termination reports
         :type verbose: bool
+        :param predicted_data_coordinates: coordinates at which predicted data is collected
+        :type predicted_data_coordinates: :class:'numpy.ndarray'
+        :param observed_data_coordinates: coordinates at which observed data is collected
+        :type observed_data_coordinates: :class:'numpy.ndarray'
         :param filter_predictions: check if predictions should be filtered
         :type filter_predictions: bool
         :param filter_observations: check if observations should be filtered
         :type filter_observations: bool
-        :return: arrays of filtered predictions, filtered observations, and filtered data coordinates
-        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`, :class:`numpy.ndarray`
+        :return: arrays of filtered predictions and filtered observations
+        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`
         """
 
+        self.filtered_data_coordinates = filtered_data_coordinates
+        self.predicted_data_coordinates = predicted_data_coordinates
+        self.observed_data_coordinates = observed_data_coordinates
         self.predict_knots = []
         self.obs_knots = []
 
@@ -267,25 +262,24 @@ class LUQ(object):
         if self.observed_data is None and filter_observations:
             print('No observed data to filter. Set observed_data for filtering.')
             filter_observations = False
-
-        self.data_coordinates = data_coordinates
-        data_coordinates = self.data_coordinates[start_idx:end_idx + 1]
-        filtered_data_coordinates = np.linspace(
-            self.data_coordinates[start_idx],
-            self.data_coordinates[end_idx],
-            num_filtered_obs)
-        self.filtered_data_coordinates = filtered_data_coordinates
         
         # filtering observations
         if filter_observations:
+            if self.observed_data_coordinates is None:
+                self.observed_data_coordinates = self.filtered_data_coordinates
+
+            self.info['obs_filtering_params'] = {'filter_method': 'splines_tol',
+                                                 'tol': tol,
+                                                 'min_knots': min_knots,
+                                                 'max_knots': max_knots}
             num_obs = self.observed_data.shape[0]
-            self.filtered_obs = np.zeros((num_obs, num_filtered_obs))
+            self.filtered_obs = np.zeros((num_obs, self.filtered_data_coordinates.shape[0]))
             for idx in range(num_obs):
                 i = min_knots
                 q_pl_old = None
                 while i <= max_knots:
-                    filtered_obs, error, q_pl = linear_c0_spline(data_coordinates, 
-                                                                data=self.observed_data[idx, start_idx:end_idx + 1],
+                    filtered_obs, error, q_pl = linear_c0_spline(data_coordinates=self.observed_data_coordinates, 
+                                                                data=self.observed_data[idx,:],
                                                                 num_knots=i,
                                                                 filtered_data_coordinates=self.filtered_data_coordinates,
                                                                 spline_old=q_pl_old)
@@ -304,14 +298,21 @@ class LUQ(object):
                 self.filtered_obs[idx, :] = filtered_obs
 
         if filter_predictions:
+            if self.predicted_data_coordinates is None:
+                self.predicted_data_coordinates = self.filtered_data_coordinates
+
+            self.info['pred_filtering_params'] = {'filter_method': 'splines_tol',
+                                                  'tol': tol,
+                                                  'min_knots': min_knots,
+                                                  'max_knots': max_knots}
             num_predictions = self.predicted_data.shape[0]
-            self.filtered_predictions = np.zeros((num_predictions, num_filtered_obs))
+            self.filtered_predictions = np.zeros((num_predictions, self.filtered_data_coordinates.shape[0]))
             for idx in range(num_predictions):
                 i = min_knots
                 q_pl_old = None
                 while i <= max_knots:
-                    filtered_predictions, error, q_pl = linear_c0_spline(data_coordinates=data_coordinates, 
-                                                                        data=self.predicted_data[idx, start_idx:end_idx + 1],
+                    filtered_predictions, error, q_pl = linear_c0_spline(data_coordinates=self.predicted_data_coordinates, 
+                                                                        data=self.predicted_data[idx,:],
                                                                         num_knots=i,
                                                                         filtered_data_coordinates=self.filtered_data_coordinates,
                                                                         spline_old=q_pl_old)
@@ -330,7 +331,7 @@ class LUQ(object):
                     print(idx, i, "knots being used")
                 self.filtered_predictions[idx, :] = filtered_predictions
 
-        return self.filtered_predictions, self.filtered_obs, self.filtered_data_coordinates
+        return self.filtered_predictions, self.filtered_obs
 
     def filter_data_rbfs(self,
                          filtered_data_coordinates,
@@ -346,8 +347,33 @@ class LUQ(object):
                          filter_predictions=True,
                          filter_observations=True):
         '''
-        :return: arrays of filtered predictions and filtered observations
-        :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`
+        filters data by fitting weighted sum of Gaussians with optional polynomial
+        :param filtered_data_coordinates: coordinates at which resulting fitted function is evaluated
+        :type filtered_data_coordinates: :class:'numpy.ndarray'
+        :param num_rbf_list: list of number of rbfs to fit
+        :type num_rbf_list: int, list, or range
+        :param remove_trend: controls whether a polynomial trend should be removed prior to fitting. If False, data is shifted to have mean of 0
+        :type remove_trend: bool
+        :param add_poly: controls if polynomial is added to weighted sum of rbfs in model function
+        :type add_poly: bool
+        :param poly_deg: degree of polynomial for polynomial trend and/or polynomial part of model function
+        :type poly_deg: int
+        :param initializer: Gaussian location initialization method. Must be either 'Halton', 'kmeans', 'uniform_random', or 'all'
+        :type initializer: string
+        :param max_opt_count: maximum number of opimization attempts per sample per num_rbfs
+        :type max_opt_count: int
+        :param tol: relative error tolerance that control whether to keep fit or move to next num_rbfs in num_rbf_list
+        :type tol: float
+        :param predicted_data_coordinates: coordinates at which predicted data is collected
+        :type predicted_data_coordinates: :class:'numpy.ndarray'
+        :param observed_data_coordinates: coordinates at which observed data is collected
+        :type observed_data_coordinates: :class:'numpy.ndarray'
+        :param filter_predictions: controls whether predicted data is filtered
+        :type filter_predictions: bool
+        :param filter_observations: controls whether observed data is filtered
+        :type filter_observations: bool
+        :return: returns filtered predictions and filtered observations
+        :rtype: :class:'numpy.ndarray', :class:'numpy.ndarray'
         '''
         
         self.filtered_data_coordinates = filtered_data_coordinates
@@ -360,7 +386,8 @@ class LUQ(object):
             filter_observations = False
         
         if filter_observations:
-            self.info['obs_filtering_params'] = {'num_rbf_list': num_rbf_list,
+            self.info['obs_filtering_params'] = {'filter_method': 'rbfs',
+                                                 'num_rbf_list': num_rbf_list,
                                                  'remove_trend': remove_trend,
                                                  'add_poly': add_poly,
                                                  'poly_deg': poly_deg,
@@ -384,7 +411,8 @@ class LUQ(object):
                                             tol)
         
         if filter_predictions:
-            self.info['pred_filtering_params'] = {'num_rbf_list': num_rbf_list,
+            self.info['pred_filtering_params'] = {'filter_method': 'rbfs',
+                                                  'num_rbf_list': num_rbf_list,
                                                  'remove_trend': remove_trend,
                                                  'add_poly': add_poly,
                                                  'poly_deg': poly_deg,
@@ -673,7 +701,7 @@ class LUQ(object):
 
         return clf
 
-    def learn_qoi(self,
+    def learn_qois(self,
                   variance_rate=None,
                   proposals=({'kernel': 'linear'},
                              {'kernel': 'rbf'},
@@ -721,7 +749,7 @@ class LUQ(object):
 
         if variance_rate is not None:
             for i in range(self.num_clusters):
-                scaler = StandardScaler()
+                scaler = StandardScaler(with_std=False)
                 X_std = scaler.fit_transform(
                     self.filtered_predictions[np.where(self.predict_labels == i)[0], :])
                 self.scalers.append(scaler)
@@ -796,7 +824,7 @@ class LUQ(object):
                 print('---------------------------------------------')
         else:
             for i in range(self.num_clusters):
-                scaler = StandardScaler()
+                scaler = StandardScaler(with_std=False)
                 predict_ptr = np.where(self.predict_labels == i)[0]
                 X_std = scaler.fit_transform(
                     self.filtered_predictions[predict_ptr, :])
@@ -853,9 +881,9 @@ class LUQ(object):
                 print('---------------------------------------------')
         return self.kpcas
 
-    def choose_qois(self):
+    def transform_predictions(self):
         """
-        Transform predicted time series to new QoIs.
+        Transform predicted data to new QoIs.
         :return: transformed predictions
         :rtype: :class:`numpy.ndarray`
         """
@@ -863,6 +891,42 @@ class LUQ(object):
         for i in range(self.num_clusters):
             self.predict_maps.append(self.Xpcas[i][:, 0:self.num_pcs[i]])
         return self.predict_maps
+    
+    def set_observations(self,
+                         observed_data):
+        '''
+        Adds observed data as an attribute.
+        :param observed_data: observed data
+        :type observed_data: :class:'numpy.ndarray'
+        '''
+
+        self.observed_data = observed_data
+
+    def filter_observations(self,
+                            observed_data_coordinates=None,
+                            **kwargs):
+        '''
+        filter observed data either using same parameters when predictions were filtered or given parameters with kwargs
+        :param observed_data_coordinates: coordinates at which observed data is collected
+        :type observed_data_coordinates: :class:'numpy.ndarray'
+        :return: filtered observed data
+        :rtype: :class:'numpy.ndarray'
+        '''
+
+        self.observed_data_coordinates = observed_data_coordinates
+        
+        if self.info['pred_filtering_params'] is None:
+            self.filter_data(filtered_data_coordinates=self.filtered_data_coordinates,
+                             observed_data_coordinates=self.observed_data_coordinates,
+                             filter_predictions=False, 
+                             **kwargs)
+        else:
+            self.filter_data(filtered_data_coordinates=self.filtered_data_coordinates,
+                             observed_data_coordinates=self.observed_data_coordinates,
+                             filter_predictions=False, 
+                             **self.info['pred_filtering_params'])
+        
+        return self.filtered_obs
 
     def classify_observations(self):
         """
@@ -898,7 +962,7 @@ class LUQ(object):
 
     def transform_observations(self):
         """
-        Transform observed time series to new QoIs.
+        Transform observed data to new QoIs.
         :return: transformed observations
         :rtype: :class:`numpy.ndarray`
         """
@@ -915,6 +979,20 @@ class LUQ(object):
             else:
                 self.obs_maps.append(None)
         return self.obs_maps
+    
+    def classify_and_transform_observations(self):
+        '''
+        wrapper function for methods classify_observations and transform_observations
+        :return: transformed observations
+        :rtype: :class:'numpy.ndarray'
+        '''
+
+        if self.observed_data is None:
+            print('No observed data given. Set observed_data or filtered_obs.')
+        else:
+            self.classify_observations()
+            self.transform_observations()
+        return self.obs_maps
 
     def learn_qois_and_transform(self,
                                  variance_rate=None,
@@ -925,7 +1003,7 @@ class LUQ(object):
                                             {'kernel': 'cosine'}),
                                  num_qoi=None):
         """
-        Learn Quantities of Interest and transform time series data.
+        Learn Quantities of Interest and transform data.
         :param variance_rate: proportion of variance QoIs should capture.
         :type variance_rate: float
         :param proposals: proposal keyword arguments for kPCAs (a tuple of dictionaries)
@@ -935,11 +1013,11 @@ class LUQ(object):
         :return: transformed prediction and observation maps
         :rtype: :class:`numpy.ndarray`, :class:`numpy.ndarray`
         """
-        self.learn_qoi(
+        self.learn_qois(
             variance_rate=variance_rate,
             proposals=proposals,
             num_qoi=num_qoi)
-        self.choose_qois()
+        self.transform_predictions()
         if self.observed_data is not None:
             if self.filtered_obs is None:
                 print('Observed data has not been filtered. Assuming observations do not need filtering.')
@@ -950,8 +1028,17 @@ class LUQ(object):
             return self.predict_maps
         
     def save_instance(self,
-                      file_path):
+                      file_name,
+                      file_path=''):
+        '''
+        pickles current instance of LUQ
+        :param file_name: file name
+        :type file_name: string
+        :param file_path: path to file save location
+        :type file_path: string
+        '''
         import pickle
-        pf = open(file_path, 'wb')
+        f = file_path + file_name
+        pf = open(f, 'wb')
         pickle.dump(self, pf)
         pf.close()

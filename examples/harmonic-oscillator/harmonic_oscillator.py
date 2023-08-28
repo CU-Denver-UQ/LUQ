@@ -123,16 +123,18 @@ time_end_idx = num_time_preds - 1
 
 num_filtered_obs = 16
 
+filtered_times = np.linspace(times[time_start_idx],
+                             times[time_end_idx],
+                             num_filtered_obs)
+
 # Filter data with piecewise linear splines
-learn.filter_data(
-    filter_method='splines',
-    data_coordinates=times,
-    start_idx=time_start_idx,
-    end_idx=time_end_idx,
-    num_filtered_obs=num_filtered_obs,
-    tol=5.0e-2,
-    min_knots=3,
-    max_knots=10)
+learn.filter_data(filter_method='splines',
+                  predicted_data_coordinates=times,
+                  observed_data_coordinates=times,
+                  filtered_data_coordinates=filtered_times,
+                  tol=5.0e-2, 
+                  min_knots=3, 
+                  max_knots=10)
 
 # learn and classify dynamics
 # learn.dynamics(cluster_method='gmm', kwargs={'n_components': 3})
@@ -145,7 +147,7 @@ chosen_obs = [0, 8, 10]
 colors = ['r', 'g', 'b']
 
 for i, c in zip(chosen_obs, colors):
-    plt.plot(learn.data_coordinates[time_start_idx:time_end_idx],
+    plt.plot(learn.observed_data_coordinates[time_start_idx:time_end_idx],
              learn.observed_data[i,
                                  time_start_idx:time_end_idx],
              color=c,
@@ -157,8 +159,8 @@ for i, c in zip(chosen_obs, colors):
 for i in chosen_obs:
     num_i_knots = int(0.5 * (2 + len(learn.obs_knots[i])))
     knots = np.copy(learn.obs_knots[i][num_i_knots:])
-    knots = np.insert(knots, 0, learn.data_coordinates[time_start_idx])
-    knots = np.append(knots, learn.data_coordinates[time_end_idx])
+    knots = np.insert(knots, 0, learn.observed_data_coordinates[time_start_idx])
+    knots = np.append(knots, learn.observed_data_coordinates[time_end_idx])
     plt.plot(knots,
              learn.obs_knots[i][:num_i_knots],
              'k',
@@ -176,7 +178,7 @@ plt.show()
 fig = plt.figure(figsize=(10, 8))
 
 for i, c in zip(chosen_obs, colors):
-    plt.plot(learn.data_coordinates[time_start_idx:time_end_idx],
+    plt.plot(learn.observed_data_coordinates[time_start_idx:time_end_idx],
              learn.observed_data[i,
                                  time_start_idx:time_end_idx],
              color=c,

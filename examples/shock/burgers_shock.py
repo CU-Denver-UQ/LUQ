@@ -115,16 +115,20 @@ learn = LUQ(predicted_data=predicted_time_series,
 time_start_idx = 0
 time_end_idx = 499
 
-# Filter data with piecewise constant linear splines
-learn.filter_data(
-    filter_method='splines',
-    data_coordinates=times,
-    start_idx=time_start_idx,
-    end_idx=time_end_idx,
-    num_filtered_obs=500,
-    tol=0.5 * noise_stdev,
-    min_knots=3,
-    max_knots=4)
+num_filtered_obs = 500
+
+filtered_times = np.linspace(times[time_start_idx],
+                             times[time_end_idx],
+                             num_filtered_obs)
+
+# Filter data with piecewise linear splines
+learn.filter_data(filter_method='splines',
+                  predicted_data_coordinates=times,
+                  observed_data_coordinates=times,
+                  filtered_data_coordinates=filtered_times,
+                  tol=0.5*noise_stdev, 
+                  min_knots=3, 
+                  max_knots=4)
 
 # Learn and classify dynamics.
 learn.dynamics(cluster_method='kmeans', kwargs={'n_clusters': 2, 'n_init': 10})
@@ -134,7 +138,7 @@ chosen_obs = [1, 3, 6]  #
 colors = ['r', 'g', 'b']
 
 for i, c in zip(chosen_obs, colors):
-    plt.plot(learn.data_coordinates[time_start_idx:time_end_idx + 1],
+    plt.plot(learn.observed_data_coordinates[time_start_idx:time_end_idx + 1],
              learn.observed_data[i,
                                  time_start_idx:time_end_idx + 1],
              color=c,
@@ -164,7 +168,7 @@ plt.show()
 fig = plt.figure(figsize=(10, 8))
 
 for i, c in zip(chosen_obs, colors):
-    plt.plot(learn.data_coordinates[time_start_idx:time_end_idx + 1],
+    plt.plot(learn.observed_data_coordinates[time_start_idx:time_end_idx + 1],
              learn.observed_data[i,
                                  time_start_idx:time_end_idx + 1],
              color=c,
@@ -437,16 +441,20 @@ learn2 = LUQ(predicted_data=predicted_time_series2,
 time_start_idx = 250
 time_end_idx = 749
 
-# Filter data with piecewise constant linear splines
-learn2.filter_data(
-    filter_method='splines_tol',
-    data_coordinates=times,
-    start_idx=time_start_idx,
-    end_idx=time_end_idx,
-    num_filtered_obs=500,
-    tol=0.5 * noise_stdev,
-    min_knots=3,
-    max_knots=4)
+num_filtered_obs = 500
+
+filtered_times = np.linspace(times[time_start_idx],
+                             times[time_end_idx],
+                             num_filtered_obs)
+
+# Filter data with piecewise linear splines
+learn2.filter_data(filter_method='splines_tol',
+                  predicted_data_coordinates=times,
+                  observed_data_coordinates=times,
+                  filtered_data_coordinates=filtered_times,
+                  tol=0.5*noise_stdev, 
+                  min_knots=3, 
+                  max_knots=4)
 
 # Learn and classify dynamics.
 learn2.dynamics(
