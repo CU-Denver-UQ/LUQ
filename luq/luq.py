@@ -913,7 +913,10 @@ class LUQ(object):
         :rtype: :class:'numpy.ndarray'
         '''
 
-        self.observed_data_coordinates = observed_data_coordinates
+        if observed_data_coordinates is not None:
+            self.observed_data_coordinates = observed_data_coordinates
+        elif self.observed_data_coordinates is None:
+            self.observed_data_coordinates = self.filtered_data_coordinates
         
         if self.info['pred_filtering_params'] is None:
             self.filter_data(filtered_data_coordinates=self.filtered_data_coordinates,
