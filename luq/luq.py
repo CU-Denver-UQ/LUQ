@@ -735,6 +735,7 @@ class LUQ(object):
             # Set up single cluster if no clustering has been done
             print("No clustering performed. Assuming a single cluster.")
             self.num_clusters = 1
+            self.info['num_clusters'] = 1
             self.predict_labels = np.array(
                 self.filtered_predictions.shape[0] * [0])
 
@@ -950,6 +951,8 @@ class LUQ(object):
 
             if self.num_clusters is None:
                 self.num_clusters = 1
+
+            if self.num_clusters == 1:
                 self.obs_labels = np.array(self.filtered_obs.shape[0]*[0])
                 self.obs_empty_cluster = [False]
             else:
