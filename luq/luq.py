@@ -345,7 +345,8 @@ class LUQ(object):
                          predicted_data_coordinates=None,
                          observed_data_coordinates=None,
                          filter_predictions=True,
-                         filter_observations=True):
+                         filter_observations=True,
+                         verbose=False):
         '''
         filters data by fitting weighted sum of Gaussians with optional polynomial
         :param filtered_data_coordinates: coordinates at which resulting fitted function is evaluated
@@ -372,6 +373,8 @@ class LUQ(object):
         :type filter_predictions: bool
         :param filter_observations: controls whether observed data is filtered
         :type filter_observations: bool
+        :param verbose: controls whether progress print statements from filtering algorithm are printed
+        :type verbose: bool
         :return: returns filtered predictions and filtered observations
         :rtype: :class:'numpy.ndarray', :class:'numpy.ndarray'
         '''
@@ -408,7 +411,8 @@ class LUQ(object):
                                             num_rbf_list,
                                             initializer,
                                             max_opt_count,
-                                            tol)
+                                            tol,
+                                            verbose=verbose)
         
         if filter_predictions:
             self.info['pred_filtering_params'] = {'filter_method': 'rbfs',
@@ -433,7 +437,8 @@ class LUQ(object):
                                                         num_rbf_list,
                                                         initializer,
                                                         max_opt_count,
-                                                        tol)
+                                                        tol,
+                                                        verbose=verbose)
             
         return self.filtered_predictions, self.filtered_obs
 
