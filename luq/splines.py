@@ -85,8 +85,7 @@ def linear_c0_spline(
                                      (data_coordinates - data_coordinates[0]) / (data_coordinates[-1] - data_coordinates[0]),
                                      data,
                                      p0=np.hstack([q_pl_unif[0:num_knots], knots_init]),
-                                     bounds=param_bounds,
-                                     verbose=verbose)
+                                     bounds=param_bounds)
         q_pl[num_knots:] *= (data_coordinates[-1] - data_coordinates[0])
         q_pl[num_knots:] += data_coordinates[0]
 
