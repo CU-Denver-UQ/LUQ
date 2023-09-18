@@ -33,11 +33,7 @@ These are used to instantiate the LUQ object:
 ### Filtering data (approximating dynamics)
 Next, the data is filtered. This is done using either piecewise linear splines or with a weighted sum of Gaussians. The splines approach uses both adaptive numbers of knots and adaptive knot placement to approximate underlying dynamical responses allowing approximating the underlying dynamical response to arbitrary pointwise accuracy if both a sufficiently high frequency for collecting data and number of knots are used. The Gaussian function approach uses a similar adaptive approach with the number of Gaussians used and fits the Gaussian locations, shape, and weight. The Gaussian approach also allows other capabilities of removing polynomial trends prior to fitting and adding a polynomial of degree 1, 2, or 3 to the weighted sum of Gaussians to be fitted. With either approach, the learned functional response is evaluated at (possibly) new coordinates (filtered_data_coordinates) resulting in "filtered" data.
 
-<<<<<<< HEAD
 In LUQ, this is done as follows with the first example filtering the data using splines and the second example filtering the data using Gaussians and polynomials.
-=======
-In LUQ, this is done as follows with the first example filtering the data using splines and the seecond example filtering the data using Gaussians and polynomials.
->>>>>>> 594833b99e964ddee3aa541bfe0a78a435763acf
 
     learn.filter_data(filter_method='splines',
                          filtered_data_coordinates=filtered_data_coordinates,
