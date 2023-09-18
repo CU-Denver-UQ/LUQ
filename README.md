@@ -12,8 +12,8 @@ The current development branch of LUQ can be installed from GitHub,  using ``pip
 
     pip install git+https://github.com/CU-Denver-UQ/LUQ
     
-Another option is to clone the repository and install LUQ using
-``python setup.py install``
+<!-- Another option is to clone the repository and install LUQ using
+``python setup.py install`` -->
 
 ## Dependencies
 LUQ is tested on Python 3.6 (but should work on most recent Python 3 versions) and depends on scikit-learn, NumPy, SciPy, and matplotlib (see ``requirements.txt`` for version information).
@@ -23,25 +23,37 @@ LUQ is tested on Python 3.6 (but should work on most recent Python 3 versions) a
 
 ## End-to-End Workflow
 The workflow for using LUQ is designed to be as straightforward and simple as possible.
-The three initial ingredients for using LUQ are the predicted time series, observed time series, and the data collection times, `predicted_time_series`, `observed_time_series`, and `times`, respectively.
+The two initial ingredients needed for using LUQ is the predicted data (predicted_data) and observed data (observed_data). However, the observed data is optional and can be added after instantiation using the set_observations method allowing observations to be used as available.
+
 These are used to instantiate the LUQ object:
 
     from luq import LUQ
-    learn = LUQ(predicted_time_series, observed_time_series, times)
+    learn = LUQ(predicted_data, observed_data)
     
 ### Filtering data (approximating dynamics)
-Next, the data is filtered.
-We fit piecewise linear splines with both adaptive numbers of knots and adaptive knot placement to approximate underlying dynamical responses.
-It is then possible to approximate the underlying dynamical response to arbitrary pointwise accuracy if both a sufficiently high frequency for collecting data and number of knots are used.
-The splines are then evaluated at (possibly) new time values, resulting in "filtered" data.
+Next, the data is filtered. This is done using either piecewise linear splines or with a weighted sum of Gaussians. The splines approach uses both adaptive numbers of knots and adaptive knot placement to approximate underlying dynamical responses allowing approximating the underlying dynamical response to arbitrary pointwise accuracy if both a sufficiently high frequency for collecting data and number of knots are used. The Gaussian function approach uses a similar adaptive approach with the number of Gaussians used and fits the Gaussian locations, shape, and weight. The Gaussian approach also allows other capabilities of removing polynomial trends prior to fitting and adding a polynomial of degree 1, 2, or 3 to the weighted sum of Gaussians to be fitted. With either approach, the learned functional response is evaluated at (possibly) new coordinates (filtered_data_coordinates) resulting in "filtered" data.
 
-In LUQ, this is done by:
+In LUQ, this is done as follows with the first example filtering the data using splines and the second example filtering the data using Gaussians and polynomials.
 
-    learn.filter_data(time_start_idx=time_start_idx, time_end_idx=time_end_idx,
-                     num_filtered_obs=num_filtered_obs, tol=tol, min_knots=min_knots, 
-                     max_knots=max_knots)
+    learn.filter_data(filter_method='splines',
+                         filtered_data_coordinates=filtered_data_coordinates,
+                         predicted_data_coordinates=predicted_data_coordinates,
+                         observed_data_coordinates=observed_data_coordinates,
+                         tol=tol,
+                         min_knots=min_knots,
+                         max_knots=max_knots)
+    
+    learn.filter_data(filter_method='rbf',
+                         filtered_data_coordinates=filtered_data_coordinates,
+                         predicted_data_coordinates=predicted_data_coordinates,
+                         observed_data_coordinates=observed_data_coordinates,
+                         num_rbf_list=num_rbf_list,
+                         remove_trend=remove_trend,
+                         add_poly=add_poly,
+                         poly_deg=poly_deg,
+                         initializer=initializer)
                      
-where `time_start_idx` is the index of the beginning of the time window, `time_end_idx` is the index of the end of the time window, `num_filtered_obs` is the number of uniformly spaced filtered observations to take, `tol`, `min_knots`, and `max_knots` are the tolerance, minimum, and maximum number of knots.
+where 'filtered_data_coordinates' are the coordinates at which the fitted function is evaluated, 'predicted_data_coordinates' and 'observed_data_coordinates' are the predicted and observed data coordinates respectively, and the other parameters are particular to the fitting methods for fitting splines or Gaussians. Use help(luq.LUQ.filter_data_splines) or help(luq.LUQ.filter_data_rbfs) for paramter details.
 
 ### Clustering and classifying data (learning and classifying dynamics)
 Next, we learn and classify the dynamics.
@@ -69,14 +81,18 @@ Finally, the best kernel PCAs are calculated for each cluster and the transforme
 A number of desired quantities of interest for each cluster can be specified
 
     predict_map, obs_map = learn.learn_qois_and_transform(num_qoi=1,
-                                                          proposals=({'kernel': 'linear'}, {'kernel': 'rbf'},
-                                                                     {'kernel': 'sigmoid'}, {'kernel': 'cosine'}))
+                                                          proposals=({'kernel':'linear'}, 
+                                                                     {'kernel': 'rbf'},
+                                                                     {'kernel': 'sigmoid'}, 
+                                                                     {'kernel': 'cosine'}))
                                                                                                                         
 or a proportion of variance explained by the minimum number of components can be specified for each cluster
 
     predict_map, obs_map = learn.learn_qois_and_transform(variance_rate=0.9,
-                                                          proposals=({'kernel': 'linear'}, {'kernel': 'rbf'},
-                                                                     {'kernel': 'sigmoid'}, {'kernel': 'cosine'}))
+                                                          proposals=({'kernel': 'linear'}, 
+                                                                     {'kernel': 'rbf'},
+                                                                     {'kernel': 'sigmoid'}, 
+                                                                     {'kernel': 'cosine'}))
                                                                      
 where `proposals` contains dictionaries of proposed [kernel parameters](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.KernelPCA.html#sklearn.decomposition.KernelPCA).
 
