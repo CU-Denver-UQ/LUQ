@@ -345,7 +345,8 @@ class LUQ(object):
                          predicted_data_coordinates=None,
                          observed_data_coordinates=None,
                          filter_predictions=True,
-                         filter_observations=True):
+                         filter_observations=True,
+                         verbose=False):
         '''
         filters data by fitting weighted sum of Gaussians with optional polynomial
         :param filtered_data_coordinates: coordinates at which resulting fitted function is evaluated
@@ -372,6 +373,8 @@ class LUQ(object):
         :type filter_predictions: bool
         :param filter_observations: controls whether observed data is filtered
         :type filter_observations: bool
+        :param verbose: controls whether progress print statements from filtering algorithm are printed
+        :type verbose: bool
         :return: returns filtered predictions and filtered observations
         :rtype: :class:'numpy.ndarray', :class:'numpy.ndarray'
         '''
@@ -408,7 +411,8 @@ class LUQ(object):
                                             num_rbf_list,
                                             initializer,
                                             max_opt_count,
-                                            tol)
+                                            tol,
+                                            verbose=verbose)
         
         if filter_predictions:
             self.info['pred_filtering_params'] = {'filter_method': 'rbfs',
@@ -433,7 +437,8 @@ class LUQ(object):
                                                         num_rbf_list,
                                                         initializer,
                                                         max_opt_count,
-                                                        tol)
+                                                        tol,
+                                                        verbose=verbose)
             
         return self.filtered_predictions, self.filtered_obs
 
@@ -735,6 +740,7 @@ class LUQ(object):
             # Set up single cluster if no clustering has been done
             print("No clustering performed. Assuming a single cluster.")
             self.num_clusters = 1
+            self.info['num_clusters'] = 1
             self.predict_labels = np.array(
                 self.filtered_predictions.shape[0] * [0])
 
@@ -913,7 +919,10 @@ class LUQ(object):
         :rtype: :class:'numpy.ndarray'
         '''
 
-        self.observed_data_coordinates = observed_data_coordinates
+        if observed_data_coordinates is not None:
+            self.observed_data_coordinates = observed_data_coordinates
+        elif self.observed_data_coordinates is None:
+            self.observed_data_coordinates = self.filtered_data_coordinates
         
         if self.info['pred_filtering_params'] is None:
             self.filter_data(filtered_data_coordinates=self.filtered_data_coordinates,
@@ -947,6 +956,8 @@ class LUQ(object):
 
             if self.num_clusters is None:
                 self.num_clusters = 1
+
+            if self.num_clusters == 1:
                 self.obs_labels = np.array(self.filtered_obs.shape[0]*[0])
                 self.obs_empty_cluster = [False]
             else:
