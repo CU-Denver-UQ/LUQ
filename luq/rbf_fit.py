@@ -283,7 +283,8 @@ class RBFFit(object):
     def initialize_loc(self, 
                        current_initializer, 
                        num_rbfs,
-                       num_rbf_list_idx):
+                       num_rbf_list_idx,
+                       output_data_shifted):
         '''
         calculates and returns initialization of locations of Gaussians using either uniform random sampling, Halton sampling, or k-means or returns previously calculated initialization
         :param current_initializer: current Gaussian location initialization method
@@ -296,14 +297,14 @@ class RBFFit(object):
         :rtype: :class:`numpy.ndarray`
         '''
         if current_initializer == 'uniform_random':
-            if self.loc_initials[current_initializer][num_rbf_list_idx] is None:
+            if self.loc_initials[current_initializer][num_rbf_list_idx] is None or self.loc_initials[current_initializer][num_rbf_list_idx].shape[0] != self.dim*num_rbfs:
                 output = np.random.uniform(0, 1, self.dim*num_rbfs)
                 self.loc_initials[current_initializer][num_rbf_list_idx] = output
                 return output
             else:
                 return self.loc_initials[current_initializer][num_rbf_list_idx]
         elif current_initializer == 'Halton':
-            if self.loc_initials[current_initializer][num_rbf_list_idx] is None:
+            if self.loc_initials[current_initializer][num_rbf_list_idx] is None or self.loc_initials[current_initializer][num_rbf_list_idx].shape[0] != self.dim*num_rbfs:
                 Halton_sampler = Halton(d=self.dim)
                 output = Halton_sampler.random(n=num_rbfs).T.flatten()
                 self.loc_initials[current_initializer][num_rbf_list_idx] = output
@@ -311,28 +312,35 @@ class RBFFit(object):
             else: 
                 return self.loc_initials[current_initializer][num_rbf_list_idx]
         elif current_initializer == 'kmeans':
-            if self.loc_initials[current_initializer][num_rbf_list_idx] is None:
-                kmeans = KMeans(n_clusters=num_rbfs).fit(X=self.input_data_scaled)
-                output = kmeans.cluster_centers_.T.flatten()
-                self.loc_initials[current_initializer][num_rbf_list_idx] = output
-                return output
-            else: 
-                return self.loc_initials[current_initializer][num_rbf_list_idx]
+            output_data_shifted = np.reshape(output_data_shifted, (output_data_shifted.shape[0],1))
+            kmeans = KMeans(n_clusters=num_rbfs).fit(X=output_data_shifted)
+            min_idx = []
+            for cluster in range(kmeans.n_clusters):
+                idx_array = np.where(kmeans.labels_ == cluster)[0]
+                center = kmeans.cluster_centers_[cluster]
+                min_idx.append(np.argmin([np.abs(output_data_shifted[idx]-center) for idx in idx_array]))
+            output = self.input_data_scaled[min_idx,:].T.flatten()
+            self.loc_initials[current_initializer][num_rbf_list_idx] = output
+            return output
         else:
             print(f'Choose either uniform_random, Halton, or kmeans for location initialization.')
             print(f'Proceeding using k-means.')
-            if self.loc_initials['kmeans'][num_rbf_list_idx] is None:
-                kmeans = KMeans(n_clusters=num_rbfs).fit(X=self.input_data_scaled)
-                output = kmeans.cluster_centers_.T.flatten()
-                self.loc_initials['kmeans'][num_rbf_list_idx] = output
-                return output
-            else: 
-                return self.loc_initials['kmeans'][num_rbf_list_idx]
+            output_data_shifted = np.reshape(output_data_shifted, (output_data_shifted.shape[0],1))
+            kmeans = KMeans(n_clusters=num_rbfs).fit(X=output_data_shifted)
+            min_idx = []
+            for cluster in range(kmeans.n_clusters):
+                idx_array = np.where(kmeans.labels_ == cluster)[0]
+                center = kmeans.cluster_centers_[cluster]
+                min_idx.append(np.argmin([np.abs(output_data_shifted[idx]-center) for idx in idx_array]))
+            output = self.input_data_scaled[min_idx,:].T.flatten()
+            self.loc_initials[current_initializer][num_rbf_list_idx] = output
+            return output
 
     def initialize_params(self, 
                           current_initializer, 
                           num_rbfs, 
                           num_rbf_list_idx, 
+                          output_data_shifted,
                           output_data_abs_max, 
                           ps_poly=None):
         '''
@@ -355,7 +363,7 @@ class RBFFit(object):
         # initialize sigmas
         p0.extend(np.ones(self.dim*num_rbfs) / 2 / num_rbfs)
         # initialize rs
-        p0.extend(self.initialize_loc(current_initializer, num_rbfs, num_rbf_list_idx))
+        p0.extend(self.initialize_loc(current_initializer, num_rbfs, num_rbf_list_idx, output_data_shifted))
         if self.add_poly:
             p0.extend(ps_poly)
         return p0
@@ -450,6 +458,7 @@ class RBFFit(object):
             p0 = self.initialize_params(initializer, 
                                         num_rbfs, 
                                         num_rbf_list_idx,
+                                        output_data_shifted,
                                         output_data_abs_max, 
                                         ps_poly=ps_poly)
 
