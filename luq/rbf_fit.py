@@ -293,6 +293,8 @@ class RBFFit(object):
         :type num_rbfs: int
         :param num_rbf_list_idx: index in num_rbf_list
         :type num_rbf_list_idx: int
+        :param output_data_shifted: same as output_data but with polynomial trend subtracted off
+        :type output_data_shifted: :class:'numpy.ndarray'
         :return: intial Gaussian locations for optimizer
         :rtype: :class:`numpy.ndarray`
         '''
@@ -351,6 +353,8 @@ class RBFFit(object):
         :type num_rbfs: int
         :param num_rbf_list_idx: index in num_rbf_list
         :type num_rbf_list_idx: int
+        :param output_data_shifted: same as output_data but with polynomial trend subtracted off
+        :type output_data_shifted: :class:'numpy.ndarray'
         :param output_data_abs_max: absolute max of data
         :type output_data_abs_max: float
         :param ps_poly: initial polynomial coefficients
