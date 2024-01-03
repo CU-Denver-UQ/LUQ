@@ -114,14 +114,16 @@ class RBFFit(object):
                                     remove_trend = False  
                                     add_poly = False
             self.powers = powers                       
-            self.A_orig = self.construct_global_design_matrix(self.input_data_scaled)
+            self.A_orig = self.construct_global_design_matrix(self.input_data)
+            self.A_orig_scaled = self.construct_global_design_matrix(self.input_data_scaled)
             if remove_trend:
-                self.A_filtered = self.construct_global_design_matrix(self.filtered_input_data, scale=True)
+                self.A_filtered = self.construct_global_design_matrix(self.filtered_input_data)
 
         # setting attributes from input parameters
         self.remove_trend = remove_trend
         self.add_poly = add_poly
         self.deg = poly_deg 
+        self.fitted_params = None
 
     def rbf(self, 
             x, 
@@ -279,6 +281,49 @@ class RBFFit(object):
         else:
             weights, sigmas, rs = self.unpack_parameters(args[0], N)
             return self.rbf(xdata, weights, sigmas, rs)
+        
+    def evaluation_function(self,
+                            x,
+                            weights,
+                            sigmas,
+                            rs,
+                            coeffs=None,
+                            ps_trend=None,
+                            trend_mean=None):
+        '''
+        method meant to be used outside of this class after filter_data method has been executed. Takes necessary parameters that define the filter function
+        to evaluate at input
+        :param x: input data to evaluate function at
+        :type x: array-like of shape (number_of_inputs,dimensions)
+        :param weights: weights for sum of Gaussians
+        :type weights: 1-dimensional array-like of shape (number_of_rbfs,)
+        :param sigmas: shape parameter for Gaussians
+        :type sigmas: array-like of shape (number_of_rbfs,dimension)
+        :param rs: Gaussian locations
+        :type rs: :class:`numpy.ndarray` of shape (number_of_rbfs,dimension)
+        :param coeffs: coefficients for optional polynomial part of fitting model
+        :type coeffs: array-like
+        :param ps_trend: coefficients of optional polynomial trend fitted prior to RBF fitting
+        :type ps_trend: array-like
+        :param trend_mean: original mean of data prior to being centered to zero mean if no polynomial fitting is done prior to filtering
+        :type trend_mean: array-like
+        :return: output of function evaluation at x
+        :rtype: :class:`numpy.ndarray`
+        '''
+        
+        # evaluating centered function at x
+        if self.add_poly:
+            output = self.rbf(x, weights, sigmas, rs) + self.poly(x, coeffs)
+        else:
+            output = self.rbf(x, weights, sigmas, rs)
+
+        # undoing polynomial/mean trend centering
+        if self.remove_trend:
+            output += np.matmul(self.A_filtered, ps_trend)
+        else:
+            output += trend_mean
+
+        return output
 
     def initialize_loc(self, 
                        current_initializer, 
@@ -498,7 +543,7 @@ class RBFFit(object):
 
             return (error,) + params
 
-        except RuntimeError or LinAlgError:
+        except RuntimeError or np.linalg.LinAlgError:
             return None
         
     def opt_attempt(self, 
@@ -714,8 +759,8 @@ class RBFFit(object):
         :type tol: float
         :param verbose: controls if there are print statements
         :type verbose: bool
-        :return: filtered data
-        :type: :class:'numpy.ndarray'
+        :return: filtered data, fitted_params, fit_errors
+        :type: :class:'numpy.ndarray', list, list
         '''
         # if num_rbf_list is not a list or range, it is assumed to be an int meaning only a specific number of rbfs is fitted
         if not (isinstance(num_rbf_list, list) or isinstance(num_rbf_list, range)):
@@ -739,6 +784,9 @@ class RBFFit(object):
 
         # initializing output data
         filtered_data_samples = np.zeros(shape=(output_data_samples.shape[0],self.filtered_input_data.shape[0]))
+
+        # initialize list of fitted parameters
+        fitted_params = []
         
         # output_data_samples.shape = (samples, data)
         for n in range(output_data_samples.shape[0]):
@@ -754,7 +802,7 @@ class RBFFit(object):
 
             # initializing coefficients for added polynomial
             if self.add_poly:
-                ps_poly, _, _, _ = lstsq(self.A_orig, output_data_shifted)
+                ps_poly, _, _, _ = lstsq(self.A_orig_scaled, output_data_shifted)
             else:
                 ps_poly = None
 
@@ -831,20 +879,37 @@ class RBFFit(object):
 
                 # unshifting filtered_data according to how output_data was shifted
                 if self.remove_trend:
+                    trend = ps_trend
                     filtered_data += np.matmul(self.A_filtered, ps_trend)
                 else:
+                    trend = np.mean(output_data)
                     filtered_data += np.mean(output_data)
                 
                 filtered_data_samples[n,:] = filtered_data
+
+                if not self.add_poly:
+                    coeffs = None
+                params_dict = {'weights': weights,
+                               'sigmas': sigmas,
+                               'rs': rs,
+                               'coeffs': coeffs}
+                if self.remove_trend:
+                    params_dict['ps_trend'] = trend
+                else:
+                    params_dict['trend_mean'] = trend
             else:
                 if reshape_filtered_data:
                     print('Optimization failed.')
                 else:
                     print(f'Optimization failed at sample {n}')
+                params_dict = None
 
                 # updating attribute counting number of optimization failures and index of failure
                 self.opt_fail_count_and_idx[0] += 1
                 self.opt_fail_count_and_idx[1].append(n)
+
+            # updating fitted parameter list
+            fitted_params.append(params_dict)
 
             # updating list of errors for samples
             fit_errors.append(error)
@@ -853,7 +918,10 @@ class RBFFit(object):
         if reshape_filtered_data:
             filtered_data_samples = filtered_data_samples[0,:]
 
+        # updating fitted parameter list
+        self.fitted_params = fitted_params
+
         # updating fitted data error list
         self.fit_errors = fit_errors
 
-        return filtered_data_samples
+        return filtered_data_samples, self.fitted_params, self.fit_errors

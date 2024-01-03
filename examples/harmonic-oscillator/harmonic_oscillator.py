@@ -157,12 +157,12 @@ for i, c in zip(chosen_obs, colors):
              alpha=0.25)
 
 for i in chosen_obs:
-    num_i_knots = int(0.5 * (2 + len(learn.obs_knots[i])))
-    knots = np.copy(learn.obs_knots[i][num_i_knots:])
+    num_i_knots = int(0.5 * (2 + len(learn.filtered_obs_params[i])))
+    knots = np.copy(learn.filtered_obs_params[i][num_i_knots:])
     knots = np.insert(knots, 0, learn.observed_data_coordinates[time_start_idx])
     knots = np.append(knots, learn.observed_data_coordinates[time_end_idx])
     plt.plot(knots,
-             learn.obs_knots[i][:num_i_knots],
+             learn.filtered_obs_params[i][:num_i_knots],
              'k',
              linestyle='dashed',
              markersize=15,
