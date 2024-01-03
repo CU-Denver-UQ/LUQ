@@ -45,8 +45,8 @@ def linear_c0_spline(
         return np.interp(x, knots, Qs)
 
     def piecewise_linear_filtered(x, knots, Qs):
-        knots = np.insert(knots, 0, data_coordinates[0])
-        knots = np.append(knots, data_coordinates[-1])
+        knots = np.insert(knots, 0, data_coordinates.min())
+        knots = np.append(knots, data_coordinates.max())
         return np.interp(x, knots, Qs)
 
     if spline_old is None:
@@ -66,12 +66,12 @@ def linear_c0_spline(
     knots_unif = np.linspace(0, 1, num_knots)[1:-1]
     q_pl_unif, _ = optimize.curve_fit(lambda x, *params_0: wrapper_fit_func_qs(
         x, knots_unif, params_0), 
-        (data_coordinates - data_coordinates[0]) / (data_coordinates[-1] - data_coordinates[0]), 
+        (data_coordinates - data_coordinates.min()) / (data_coordinates.max() - data_coordinates.min()), 
         data, 
         p0=vals_init)
     q_pl_unif = np.hstack([q_pl_unif, knots_unif])
-    q_pl_unif[num_knots:] *= (data_coordinates[-1] - data_coordinates[0])
-    q_pl_unif[num_knots:] += data_coordinates[0]
+    q_pl_unif[num_knots:] *= (data_coordinates.max() - data_coordinates.min())
+    q_pl_unif[num_knots:] += data_coordinates.min()
 
     filtered_data_at_original_unif = piecewise_linear_filtered(
         data_coordinates, q_pl_unif[num_knots:], q_pl_unif[0:num_knots])
@@ -82,12 +82,12 @@ def linear_c0_spline(
     try:
         knots_init = np.linspace(0, 1, num_knots)[1:-1]
         q_pl, _ = optimize.curve_fit(lambda x, *params_0: wrapper_fit_func(x, num_knots, params_0),
-                                     (data_coordinates - data_coordinates[0]) / (data_coordinates[-1] - data_coordinates[0]),
+                                     (data_coordinates - data_coordinates.min()) / (data_coordinates.max() - data_coordinates.min()),
                                      data,
                                      p0=np.hstack([q_pl_unif[0:num_knots], knots_init]),
                                      bounds=param_bounds)
-        q_pl[num_knots:] *= (data_coordinates[-1] - data_coordinates[0])
-        q_pl[num_knots:] += data_coordinates[0]
+        q_pl[num_knots:] *= (data_coordinates.max() - data_coordinates.min())
+        q_pl[num_knots:] += data_coordinates.min()
 
         # fix if knots get out of order
         inds_sort = np.argsort(q_pl[num_knots:])
