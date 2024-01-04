@@ -24,8 +24,12 @@ class LUQ(object):
 
         self.predicted_data = predicted_data
         self.filtered_predictions = None
+        self.filtered_pred_params = None
+        self.filtered_pred_errors = None
         self.observed_data = observed_data
         self.filtered_obs = None
+        self.filtered_obs_params = None
+        self.filtered_obs_errors = None
         self.num_clusters = None
         self.cluster_labels = None
         self.predict_labels = None
@@ -114,8 +118,6 @@ class LUQ(object):
         self.filtered_data_coordinates = filtered_data_coordinates
         self.predicted_data_coordinates = predicted_data_coordinates
         self.observed_data_coordinates = observed_data_coordinates
-        self.predict_knots = []
-        self.obs_knots = []
         
         # Checking if necessary data is provided
         if self.observed_data is None and filter_observations:
@@ -127,6 +129,8 @@ class LUQ(object):
             if self.observed_data_coordinates is None:
                 self.observed_data_coordinates = self.filtered_data_coordinates
 
+            filtered_obs_params = []
+            filtered_obs_errors = []
             self.info['obs_filtering_params'] = {'filter_method': 'splines',
                                                  'tol': tol,
                                                  'min_knots': min_knots,
@@ -136,18 +140,18 @@ class LUQ(object):
             num_obs = self.observed_data.shape[0]
             self.filtered_obs = np.zeros((num_obs, self.filtered_data_coordinates.shape[0]))
             for idx in range(num_obs):
-                filtered_obs_old, error_old, q_pl = linear_c0_spline(data_coordinates=self.observed_data_coordinates,
+                filtered_obs_old, error_old, q_pl_old = linear_c0_spline(data_coordinates=self.observed_data_coordinates,
                                                                 data=self.observed_data[idx,:],
                                                                 num_knots=min_knots,
                                                                 filtered_data_coordinates=self.filtered_data_coordinates, 
                                                                 verbose=verbose)
                 i = min_knots + 1
                 while i <= max_knots:
-                    filtered_obs_new, error_new, q_pl = linear_c0_spline(data_coordinates=self.observed_data_coordinates,
+                    filtered_obs_new, error_new, q_pl_new = linear_c0_spline(data_coordinates=self.observed_data_coordinates,
                                                                     data=self.observed_data[idx,:],
                                                                     num_knots=i,
                                                                     filtered_data_coordinates=self.filtered_data_coordinates,
-                                                                    spline_old=q_pl, verbose=verbose)
+                                                                    spline_old=q_pl_old, verbose=verbose)
                     print(idx, i, error_new)
                     diff = np.average(np.abs(filtered_obs_new - filtered_obs_old)) / np.average(
                         np.abs(self.observed_data))
@@ -157,21 +161,30 @@ class LUQ(object):
                         i += 1
                         if i <= max_knots:
                             filtered_obs_old = filtered_obs_new
+                            error_old = error_new
+                            q_pl_old = q_pl_new
                 if i > max_knots:
                     print("Warning: maximum number of knots reached.")
                 else:
                     print(idx, i, "knots being used with error of", error_new)
                 if i > max_knots and error_old < error_new:
                     self.filtered_obs[idx, :] = filtered_obs_old
+                    filtered_obs_params.append(q_pl_old)
+                    filtered_obs_errors.append(error_old)
                 else:
                     self.filtered_obs[idx, :] = filtered_obs_new
-                self.obs_knots.append(q_pl)
+                    filtered_obs_params.append(q_pl_new)
+                    filtered_obs_errors.append(error_new)
+            self.filtered_obs_params = filtered_obs_params
+            self.filtered_obs_errors = filtered_obs_errors
 
         # filtering predictions
         if filter_predictions:
             if self.predicted_data_coordinates is None:
                 self.predicted_data_coordinates = self.filtered_data_coordinates
 
+            filtered_pred_params = []
+            filtered_pred_errors = []
             self.info['pred_filtering_params'] = {'filter_method': 'splines',
                                                   'tol': tol,
                                                   'min_knots': min_knots,
@@ -181,18 +194,18 @@ class LUQ(object):
             num_predictions = self.predicted_data.shape[0]
             self.filtered_predictions = np.zeros((num_predictions, self.filtered_data_coordinates.shape[0]))
             for idx in range(num_predictions):
-                filtered_predictions_old, error_old, q_pl = linear_c0_spline(data_coordinates=self.predicted_data_coordinates, 
+                filtered_predictions_old, error_old, q_pl_old = linear_c0_spline(data_coordinates=self.predicted_data_coordinates, 
                                                                             data=self.predicted_data[idx,:],
                                                                             num_knots=min_knots,
                                                                             filtered_data_coordinates=self.filtered_data_coordinates,
                                                                             verbose=verbose)
                 i = min_knots + 1
                 while i <= max_knots:
-                    filtered_predictions_new, error_new, q_pl = linear_c0_spline(data_coordinates=self.predicted_data_coordinates, 
+                    filtered_predictions_new, error_new, q_pl_new = linear_c0_spline(data_coordinates=self.predicted_data_coordinates, 
                                                                                 data=self.predicted_data[idx,:],
                                                                                 num_knots=i,
                                                                                 filtered_data_coordinates=self.filtered_data_coordinates,
-                                                                                spline_old=q_pl,
+                                                                                spline_old=q_pl_old,
                                                                                 verbose=verbose)
 
                     # After an _old and a _new is computed (when i>min_knots)
@@ -205,15 +218,23 @@ class LUQ(object):
                         i += 1
                         if i <= max_knots:
                             filtered_predictions_old = filtered_predictions_new
+                            error_old = error_new
+                            q_pl_old = q_pl_new
                 if i > max_knots:
                     print("Warning: maximum number of knots reached.")
                 else:
                     print(idx, i, "knots being used with error of", error_new)
                 if i > max_knots and error_old < error_new:
                     self.filtered_predictions[idx, :] = filtered_predictions_old
+                    filtered_pred_params.append(q_pl_old)
+                    filtered_pred_errors.append(error_old)
                 else:
                     self.filtered_predictions[idx, :] = filtered_predictions_new
-                self.predict_knots.append(q_pl)
+                    filtered_pred_params.append(q_pl_new)
+                    filtered_pred_errors.append(error_new)
+            
+            self.filtered_pred_params = filtered_pred_params
+            self.filtered_pred_errors = filtered_pred_errors
 
         return self.filtered_predictions, self.filtered_obs
          
@@ -255,8 +276,6 @@ class LUQ(object):
         self.filtered_data_coordinates = filtered_data_coordinates
         self.predicted_data_coordinates = predicted_data_coordinates
         self.observed_data_coordinates = observed_data_coordinates
-        self.predict_knots = []
-        self.obs_knots = []
 
         # Checking if necessary data is provided
         if self.observed_data is None and filter_observations:
@@ -265,6 +284,8 @@ class LUQ(object):
         
         # filtering observations
         if filter_observations:
+            filtered_obs_params = []
+            filtered_obs_errors = []
             if self.observed_data_coordinates is None:
                 self.observed_data_coordinates = self.filtered_data_coordinates
 
@@ -295,12 +316,17 @@ class LUQ(object):
                     print("Warning: maximum number of knots reached.")
                 else:
                     print(idx, i, "knots being used.")
+                filtered_obs_params.append(q_pl)
+                filtered_obs_errors.append(error)
                 self.filtered_obs[idx, :] = filtered_obs
+            self.filtered_obs_errors = filtered_obs_errors
+            self.filtered_obs_params = filtered_obs_params
 
         if filter_predictions:
             if self.predicted_data_coordinates is None:
                 self.predicted_data_coordinates = self.filtered_data_coordinates
-
+            filtered_pred_params = []
+            filtered_pred_errors = []
             self.info['pred_filtering_params'] = {'filter_method': 'splines_tol',
                                                   'tol': tol,
                                                   'min_knots': min_knots,
@@ -329,7 +355,11 @@ class LUQ(object):
                     print("Warning: maximum number of knots reached.")
                 else:
                     print(idx, i, "knots being used")
+                filtered_pred_params.append(q_pl)
+                filtered_pred_errors.append(error)
                 self.filtered_predictions[idx, :] = filtered_predictions
+            self.filtered_pred_params = filtered_pred_params
+            self.filtered_pred_errors = filtered_pred_errors
 
         return self.filtered_predictions, self.filtered_obs
 
@@ -407,12 +437,12 @@ class LUQ(object):
                             add_poly,
                             poly_deg)
             
-            self.filtered_obs = fit_obs.filter_data(self.observed_data, 
-                                            num_rbf_list,
-                                            initializer,
-                                            max_opt_count,
-                                            tol,
-                                            verbose=verbose)
+            self.filtered_obs, self.filtered_obs_params, self.filtered_obs_errors = fit_obs.filter_data(self.observed_data, 
+                                                                                                        num_rbf_list,
+                                                                                                        initializer,
+                                                                                                        max_opt_count,
+                                                                                                        tol,
+                                                                                                        verbose=verbose)
         
         if filter_predictions:
             self.info['pred_filtering_params'] = {'filter_method': 'rbfs',
@@ -433,15 +463,90 @@ class LUQ(object):
                               add_poly,
                               poly_deg)
             
-            self.filtered_predictions = fit_pred.filter_data(self.predicted_data, 
-                                                        num_rbf_list,
-                                                        initializer,
-                                                        max_opt_count,
-                                                        tol,
-                                                        verbose=verbose)
+            self.filtered_predictions, self.filtered_pred_params, self.filtered_pred_errors = fit_pred.filter_data(self.predicted_data, 
+                                                                                                                   num_rbf_list,
+                                                                                                                   initializer,
+                                                                                                                   max_opt_count,
+                                                                                                                   tol,
+                                                                                                                   verbose=verbose)
             
         return self.filtered_predictions, self.filtered_obs
 
+    def new_data_coordinates(self,
+                             data_coordinates,
+                             recalc_obs=True,
+                             recalc_pred=True):
+        '''
+        evaluates already fitted data at new data coordinates in the event that the filtered data coordinates need changing
+        :param data_coordinates: new data coordinates to use
+        :type data_coordinates: :class:`numpy.ndarray`
+        :param recalc_obs: specifies if observed data needs to be recalculated at new data coordinates
+        :type recalc_obs: bool
+        :param recalc_pred: specifies if predicted data needs to be recalculated at new data coordinates
+        :type recalc_pred: bool
+        :return: new filtered observations and/or predictions based on which are recalculated
+        :rtype: list of :class:`numpy.ndarray` types
+        '''
+        to_return = []
+
+        if recalc_obs:
+            filtered_obs = np.zeros((self.filtered_obs.shape[0], data_coordinates.shape[0]))
+            
+            # recalculating observed data if fitted using splines
+            if self.info['obs_filtering_params']['filter_method'] in ['splines', 'splines_tol']:
+                for i in range(self.filtered_obs.shape[0]):
+                    q_pl = self.filtered_obs_params[i] # list of data evaluated at knots including endpoints and knot locations not including endpoints
+                    num_knots = int(q_pl.shape[0] / 2 + 1)
+                    knots = q_pl[num_knots:]
+                    knots = np.insert(knots, 0, data_coordinates.min())
+                    knots = np.append(knots, data_coordinates.max())
+                    Qs = q_pl[0:num_knots]
+                    filtered_obs[i,:] = np.interp(data_coordinates, knots, Qs)
+
+            # recalculating observed data if fitted using RBFs
+            else:
+                fit_obs = RBFFit(self.observed_data_coordinates,
+                                data_coordinates,
+                                remove_trend=self.info['obs_filtering_params']['remove_trend'],
+                                add_poly=self.info['obs_filtering_params']['add_poly'],
+                                poly_deg=self.info['obs_filtering_params']['poly_deg'])
+                for i in range(self.filtered_obs.shape[0]):
+                    filtered_obs[i,:] = fit_obs.evaluation_function(data_coordinates,
+                                                                    **self.filtered_obs_params[i])
+            self.filtered_obs = filtered_obs
+            to_return.append(self.filtered_obs)
+            
+        if recalc_pred:
+            filtered_predictions = np.zeros((self.filtered_predictions.shape[0],data_coordinates.shape[0]))
+
+            # recalculating predicted data if fitted using splines
+            if self.info['pred_filtering_params']['filter_method'] in ['splines', 'splines_tol']:
+                for i in range(self.filtered_predictions.shape[0]):
+                    q_pl = self.filtered_pred_params[i] # list of data evaluated at knots including endpoints and knot locations not including endpoints
+                    num_knots = int(q_pl.shape[0] / 2 + 1)
+                    knots = q_pl[num_knots:]
+                    knots = np.insert(knots, 0, data_coordinates.min())
+                    knots = np.append(knots, data_coordinates.max())
+                    Qs = q_pl[0:num_knots]
+                    filtered_predictions[i,:] = np.interp(data_coordinates, knots, Qs)
+            
+            # recalculating predicted data if fitted using RBFs
+            else:
+                fit_pred = RBFFit(self.predicted_data_coordinates,
+                                data_coordinates,
+                                remove_trend=self.info['pred_filtering_params']['remove_trend'],
+                                add_poly=self.info['pred_filtering_params']['add_poly'],
+                                poly_deg=self.info['pred_filtering_params']['poly_deg'])
+                for i in range(self.filtered_predictions.shape[0]):
+                    filtered_predictions[i,:] = fit_pred.evaluation_function(data_coordinates,
+                                                                            **self.filtered_pred_params[i])
+            self.filtered_predictions = filtered_predictions
+            to_return.append(self.filtered_predictions)
+        
+        self.filtered_data_coordinates = data_coordinates
+        return to_return
+
+    
     def dynamics(self,
                  cluster_method='kmeans',
                  custom_labels=None,
