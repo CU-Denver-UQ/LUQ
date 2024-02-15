@@ -16,7 +16,7 @@ The current development branch of LUQ can be installed from GitHub,  using ``pip
 ``python setup.py install`` -->
 
 ## Dependencies
-LUQ is tested on Python 3.6 (but should work on most recent Python 3 versions) and depends on scikit-learn, NumPy, SciPy, and matplotlib (see ``requirements.txt`` for version information).
+LUQ is tested on Python 3.6 (but should work on most recent Python 3 versions) and depends on scikit-learn, NumPy, SciPy, and matplotlib (see ``requirements.txt`` for version information). 
 
 ## License
 [GNU Lesser General Public License (LGPL)](https://github.com/CU-Denver-UQ/LUQ/blob/master/LICENSE.txt)
@@ -97,8 +97,11 @@ or a proportion of variance explained by the minimum number of components can be
 where `proposals` contains dictionaries of proposed [kernel parameters](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.KernelPCA.html#sklearn.decomposition.KernelPCA).
 
 ## Examples
-Several documented examples can be found in the examples directory, including time series data from:
+Several documented examples can be found in the examples directory. Examples involving time series data include
 * [A Damped Harmonic Oscillator](https://github.com/CU-Denver-UQ/LUQ/blob/master/examples/harmonic-oscillator/harmonic_oscillator.py)
 * ODE systems with Hopf Bifurcations ([Sel'kov Model](https://github.com/CU-Denver-UQ/LUQ/blob/master/examples/selkov/selkov.py) and [Lienard Equations](https://github.com/CU-Denver-UQ/LUQ/blob/master/examples/lienard/lienard.py))
-* [Burgers Equation](https://github.com/CU-Denver-UQ/LUQ/blob/master/examples/shock/burgers_shock.py) resulting in shock solutions
-
+* [Burgers Equation](https://github.com/CU-Denver-UQ/LUQ/blob/master/examples/shock/burgers_shock.py) resulting in shock solutions.
+There are further solutions that involve spatial as well as spatial-temporal data:
+* [Wave Equation](https://github.com/CU-Denver-UQ/LUQ/blob/master/examples/wave) including several parts utilizing time series, purely spatial, and spatial temporal data
+* [Wind Turbines](https://github.com/CU-Denver-UQ/LUQ/blob/master/examples/shells/wind_turbines/Paper-Shell-Example-1-with-3-clusters.py) and [Trommel Screens](https://github.com/CU-Denver-UQ/LUQ/blob/master/examples/shells/trommel/Paper-Shell-Example-2.py) that uses noisy deformation data across shells
+We note that all shell examples require mat73 package to read the data - all relevant notebooks that have the requirement have instructions on installing mat73 located in the first code cell and scripts have the same in the first few lines.

@@ -1,3 +1,9 @@
+# mat73 required to read data; run pip install line if not installed
+
+# !pip install mat73  # For reading in Matlab 7.3 files
+import mat73 as mat73
+
+
 # The libraries we will use
 import numpy as np
 import scipy.io as sio
@@ -37,10 +43,6 @@ np.random.seed(123456)
 
 
 # Load the initial dataset containing both model data (used to generate predicted data) and parameter samples from initial distribution
-
-#!pip install mat73  # For reading in Matlab 7.3 files
-
-import mat73 as mat73
 
 init_data_set = mat73.loadmat('../SteelDrums/1DCase1-Feb22-2023/1DCase1/Prior/prior.mat')
 
