@@ -24,91 +24,164 @@ plt_params = {'legend.fontsize': 14,
 plt.rcParams.update(plt_params)
 
 
-# loading samples
+# generating samples
 
 # parameter samples for construction of pi_obs
 
 num_obs_samples = 200
 
-params_obs = np.load('data/params_obs', allow_pickle=True) # unknown data-generated parameters corresponding to observed samples
-obs = np.load('data/obs', allow_pickle=True) # noisy observed samples
+np.random.seed(12345678)
+params_obs = np.vstack([2 * np.random.beta(a=2, b=5, size=num_obs_samples) + 1,
+                         np.random.normal(loc=2.5, scale=0.5, size=num_obs_samples)]) # unknown data-generated parameters corresponding to observed samples
 
 # parameter samples of pi_init
 
 num_samples = int(1E3)
 
-params = np.load('data/params', allow_pickle=True) # uniformly distributed parameter samples
-pred = np.load('data/pred_49x49', allow_pickle=True) # predicted data 
+np.random.seed(123456)
+params = np.random.uniform(low=0.0,high=5.0,size=(2,num_samples)) # uniformly distributed parameter samples
 
+# finite-difference scheme
+
+# defining model solve function
+dx = 0.05
+dy = 0.05
+dt = 0.005 # satifies CFL condition
+
+xn = np.linspace(0,5.0,101) # 101 = length in x / dx
+ym = np.linspace(0,5.0,101)
+tk = np.linspace(0,7.0,1401) # 1401 = length in t / dt
+
+# defining model solve on 101x101 uniform mesh of [0,5]^2 for t = 0 to t = 7 with dt = 0.005
+def M(a,b):
+    # initializing the model solution
+    # using Dirichlet boundary conditions,so initializing with zeros means boundary values are set
+    u = np.zeros((101,101,1401))
+    
+    # iterate through times; t here is equivalent to time and time index
+    for t in range(1401):
+        
+        # if t = 0, use initial condition modeling wave droplet
+        if t == 0:
+            mesh = np.meshgrid(xn[1:-1],ym[1:-1])
+            u[1:-1,1:-1,t] = 0.2*np.exp(-10*((mesh[0].T-a)**2+(mesh[1].T-b)**2))
+        
+        # else solve model using finite-difference scheme
+        else:
+            u[1:-1,1:-1,t] = 2 * u[1:-1,1:-1,t-1] - u[1:-1,1:-1,max(0,t-2)] \
+                + dt**2 / dx**2 * (u[2:,1:-1,t-1] - 2 * u[1:-1,1:-1,t-1] + u[:-2,1:-1,t-1]) \
+                + dt**2 / dy**2 * (u[1:-1,2:,t-1] - 2 * u[1:-1,1:-1,t-1] + u[1:-1,:-2,t-1])
+    return u
+
+# indexing for extracting data on different grid sizes
+
+# indexing function for flattening data
+def idx_at(x,y):
+    idx = []
+    idx.append((x / dx).astype(int))
+    idx.append((y / dy).astype(int))
+    return idx
+
+# using indexing function to extract data on uniformly-spaced mesh given by delta
+def create_idx(delta):
+    N = (5-delta)/delta 
+    # note: only delta such that (5-delta)/delta is int can be used (or does not change value when cast as int) 
+    # any other delta value requires extrapolation
+    pts = np.linspace(delta,5-delta,int(N))
+    grid_pts = np.meshgrid(pts,pts)
+    idx = idx_at(grid_pts[0],grid_pts[1])
+    return [idx[0].flatten(), idx[1].flatten()]
+
+# creating grid of size grid_size x grid_size for data coordinates
+def create_coordinates(grid_size):
+    delta = 5 / (grid_size + 1)
+    X, Y = np.meshgrid(range(grid_size),range(grid_size))
+    X = X / grid_size * (5 - delta) + delta
+    Y = Y / grid_size * (5 - delta) + delta
+    return np.vstack([X.flatten(), Y.flatten()]).T
+
+obs = np.load('dg_samples/obs', allow_pickle=True)
+
+# predicted data samples on 49x49 grid, 0.1 mesh size
+pred = np.zeros((num_samples,49**2,14))
+idx = create_idx(0.1)
+for i in range(num_samples):
+    tmp = M(params[0,i], params[1,i])
+    pred[i,:,:] = tmp[idx[0],idx[1],100::100]
+    print(f'Predicted sample {i} done.')
+    
 
 # filtering data
 
-# # setup for part IV of example using LUQ
+# instantiate LUQ at each time step
+learn = [[None]]*4 # excluding first 4 time steps
 
-# # code used to filter data on 9x9 grid of spatial locations
-
-# # instantiate LUQ at each time step
-# learn = []
-
-# for i in range(obs.shape[-1]): # observed data has shape (num_samples,num_spatial_locations,num_time_steps)
-#     pred_data = pred[:,:,i]
-#     obs_data = obs[:,:,i]
-#     learn.append(LUQ(predicted_data=pred_data,
-#                       observed_data=obs_data))
+for i in range(4,obs.shape[-1]): # observed data has shape (num_samples,num_spatial_locations,num_time_steps)
+    pred_data = pred[:,:,i]
+    obs_data = obs[:,:,i]
+    learn.append(LUQ(predicted_data=pred_data,
+                      observed_data=obs_data))
 
 # # filtering observed data at each time step using sum of Gaussians
 
-# grid_size = 9
-# delta = 5 / (grid_size + 1)
-# X, Y = np.meshgrid(range(grid_size),range(grid_size))
-# X = X / grid_size * (5 - delta) + delta
-# Y = Y / grid_size * (5 - delta) + delta
-# data_coordinates = np.vstack([X.flatten(), Y.flatten()]).T
-
-# # loading luq instance for part 3 to not redo filtering to same data
-# import pickle
-# pf3 = open('instances/part3','rb')
-# learn3 = pickle.load(pf3)
-# pf3.close()
+# data_coordinates = create_coordinates(9)
 
 # np.random.seed(44444)
+# import pickle
 
 # # iterate over time steps
-# for i in range(obs.shape[-1]):
-#     if i == 4: 
-#         learn[i] = learn3 # using filtered data from part 3 for time index 4 corresponding to t=2.5
-#     else:
-#         learn[i].filter_data(filter_method='rbfs',
-#                               filtered_data_coordinates=data_coordinates,
-#                               num_rbf_list=range(1,8),
-#                               initializer='kmeans',
-#                               max_opt_count=10,
-#                               filter_predictions=False,
-#                               verbose=True)
-#     fn = 'instances/part4/part4_' + str(i)
-#     learn[i].save_instance(fn) # saving LUQ instance 
+# # for i in range(obs.shape[-1]):
+# for i in range(4,obs.shape[-1]):
+#     learn[i].filter_data(filter_method='rbfs',
+#                             filtered_data_coordinates=data_coordinates,
+#                             num_rbf_list=range(1,8),
+#                             initializer='kmeans',
+#                             max_opt_count=10,
+#                             filter_predictions=False,
+#                             verbose=True)
+#     fn = 'post_filtering/params_t' + str(i) + '_'
+#     with open(fn, 'wb') as pf:
+#         pickle.dump(learn[i].filtered_obs_params, pf)
 
-# # loading pre-computed data
-
+        
+# loading pre-computed filtered data as luq instance
 import pickle
 
-learn = []
-for i in range(obs.shape[-1]):
-    fn = 'instances/part4/part4_' + str(i)
-    pf = open(fn,'rb')
-    learn.append(pickle.load(pf))
-    pf.close()
+learn = [[None]]*4 # excluding first 4 time steps
+for i in range(4,obs.shape[-1]):
+    fn = 'post_filtering/params_t' + str(i)
+    with open(fn, 'rb') as pf:
+        filtered_obs_params = pickle.load(pf)
+    # re-instantiating LUQ
+    pred_data = pred[:,:,i]
+    obs_data = obs[:,:,i]
+    learn.append(LUQ(pred_data,
+                     obs_data))
+    learn[i].filtered_obs = obs_data # needed for shape of filtered_obs when re-evaluating using new_data_coordinates
+    learn[i].filtered_obs_params = filtered_obs_params # fitted parameters
+
+    # updating obs_filtering_params info; only need filter_method, remove_trend, add_poly, and poly_deg for recreating data
+    learn[i].info['obs_filtering_params'] = {'filter_method': 'rbfs',
+                                          'num_rbf_list': range(1,8),
+                                          'remove_trend': False,
+                                          'add_poly': False,
+                                          'poly_deg': None,
+                                          'initializer': 'kmeans',
+                                          'max_opt_count': 10,
+                                          'tol': 0.0001}
+
+    # creating data coordinates where observed data was created
+    learn[i].observed_data_coordinates = create_coordinates(9)
+    
+## end filtering
+
 
 # re-evaluating filtered observations on same grid as predictions
 
-grid_size = 49
-delta = 5 / (grid_size + 1)
-X, Y = np.meshgrid(range(grid_size),range(grid_size))
-X = X / grid_size * (5 - delta) + delta
-Y = Y / grid_size * (5 - delta) + delta
-data_coordinates = np.vstack([X.flatten(), Y.flatten()]).T
+data_coordinates = create_coordinates(49)
 
-for t in range(obs.shape[-1]):
+for t in range(4,obs.shape[-1]):
+    learn[t].filtered_predictions = pred[:,:,t]
     learn[t].new_data_coordinates(data_coordinates, 
                                   recalc_pred=False)
     
@@ -120,15 +193,13 @@ for t in range(obs.shape[-1]):
 # learning QoI map
     
 # learning 2 QoI's from data using kernel pca and transforming the data into QoI samples
-
-for t in range(obs.shape[-1]):
+for t in range(4,obs.shape[-1]):
     learn[t].learn_qois_and_transform(num_qoi=2)
 
 
 # computing iterative DCI solution
     
 # generate kernel density estimates on new QoI and calculate new weights
-
 num_qoi = 2
 tol = 0.095
 r_vals = []
@@ -142,7 +213,7 @@ for alg in [0,1]: # computing solution without and with optional quality check
     r_means.append([])
     times_used.append([])
     num_qoi_used.append([])
-    for t in range(obs.shape[-1]): # iterate over time steps
+    for t in range(4,obs.shape[-1]): # iterate over time steps
         for n in reversed(range(1,num_qoi+1)): # iterate over number of QoI from max 2 down to 0
             if len(r_vals[alg]) == 0:
                 weights = np.ones(learn[t].predict_maps[0][:,:n].shape[0]) # weights of all ones for initial iteration
@@ -214,7 +285,6 @@ for i in range(params.shape[0]):
         kde_param_marginals.append(GKDE(params_obs[i,:]))
 
 # constructing and plotting updated marginals
-
 x_min = 0.0
 x_max = 5.0
 delta = 0.25*(x_max - x_min)
@@ -244,7 +314,6 @@ for alg in [0,1]:
         plt.show()
         
 # plotting updated marginals at each iteration
-
 param_marginals = []
 
 for alg in [0,1]:
@@ -272,7 +341,6 @@ for alg in [0,1]:
         plt.show()
         
 # color plot of updated density
-
 pi_updates = []
 for alg in [0,1]:
     pi_updates.append(GKDE(params, weights=np.prod(r_vals[alg], axis=0))(params_graphing))
@@ -296,7 +364,6 @@ for alg in [0,1]:
 # computing TV metrics
     
 # calculating TV metric between updated and exact joint distributions
-
 for alg in [0,1]:
     TV_final = np.abs(pi_updates[alg]-exact_dg)/2
     # TV = np.abs(pi_updates[alg]-kde_dg)/2
@@ -304,7 +371,6 @@ for alg in [0,1]:
     print(f'TV metric between pi_update and data-generating joint distribution for algorithm {alg+1}: {TV_final}')
 
 # calculating TVs for marginals at each iteration
-
 marginal_TVs = []
 TVs = []
 for alg in [0,1]:
@@ -345,7 +411,6 @@ min_TV = np.abs(kde_dg-exact_dg)/2
 min_TV = np.mean(min_TV)*25
 
 # printing TVs at final iteration
-
 for alg in [0,1]:
     for i in range(params.shape[0]):
         print(f'TV metric for algorithm {alg+1} between final iteration and DG marginals for {param_labels[i]}: {str(marginal_TVs[alg][i][-1])}')
@@ -380,7 +445,6 @@ for alg in [0,1]:
     plt.show()
     
 # plotting marginal TVs
-        
 for alg in [0,1]:
     n = range(len(marginal_TVs[alg][0]))
     plt.figure()

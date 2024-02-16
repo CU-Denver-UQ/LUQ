@@ -22,7 +22,6 @@ plt.rcParams.update(plt_params)
 # finite-difference scheme
 
 # defining model solve function
-
 dx = 0.05
 dy = 0.05
 dt = 0.005 # satifies CFL condition
@@ -76,38 +75,6 @@ def create_idx(delta):
 # Constructing predicted samples for different meshes
 
 np.random.seed(123456)
-
-# parameter samples of pi_init
-num_samples = int(1E3)
-params = np.random.uniform(low=0.0,high=5.0,size=(2,num_samples))
-params.dump('data/params')
-
-# solving model on full grid
-full_grid = np.zeros((num_samples,101,101,14))
-for i in range(num_samples):
-    tmp = M(params[0,i],params[1,i])
-    full_grid[i,:,:,:] = tmp[:,:,100::100]
-    print(f'sample {i} done')
-
-# extracting model solve on coarser grids
-for i in range(20):
-    delta = 0.05 * (i+1)
-    N = (5-delta)/delta
-    
-    # check if grid is subset of full grid
-    if N != int(N):
-        print(f'delta={delta} does not coincide with mesh')
-    
-    # extracting data
-    else:
-        print(f'Extracting data on {int(N)}x{int(N)} grid')
-        idx = create_idx(delta)
-        pred = np.zeros((num_samples,int(N)**2,14))
-        for i in range(num_samples):
-            pred[i,:,:] = full_grid[i,idx[0],idx[1],:]
-        fn = 'data/pred_' + str(int(N)) + 'x' + str(int(N))
-        pred.dump(fn)
-
 
 # calcuting TV metrics between representative dg samples KDE and exact dg distributions
 
@@ -178,6 +145,14 @@ np.random.seed(12345678)
 params_obs = np.vstack([2 * np.random.beta(a=2, b=5, size=num_obs_samples) + 1,
                          np.random.normal(loc=2.5, scale=0.5, size=num_obs_samples)])
 
+# parameter samples of pi_init
+
+# its not necessary to compute samples of pi_init here, but data was originally generated in this manner
+# so that computing the pi_init samples allows for reproducibility in current state
+num_samples = int(1E3)
+np.random.seed(123456)
+params = np.random.uniform(low=0.0,high=5.0,size=(2,num_samples)) 
+
 # pi_obs samples w/ noise
 
 obs_clean = np.zeros((num_obs_samples,81,14))
@@ -192,26 +167,19 @@ for i in range(num_obs_samples):
     obs[i,:,:] = obs_clean[i,:,:] + np.random.normal(0.0,2.5e-3,obs_clean[i,:,:].shape)
     print(f'sample {i} done')
 
-params_obs.dump('data/params_obs')
-obs_clean.dump('data/obs_clean')
-obs.dump('data/obs')
+# obs_clean.dump('dg_samples/obs_clean')
+# obs.dump('dg_samples/obs')
     
 
 # calculating TV metrics
     
 # computing TV between exact and KDE of DG, joint and marginals
 
-# loading data-generating parameters
-params_obs = np.load('data/params_obs', allow_pickle=True)
-
 # computing densities
 kde_param_marginals = []
 
 np.random.seed(1234)
 params_full = np.random.uniform(low=0.0, high=5.0, size=(2,10000)) # large number of uniform samples of parameter space 
-
-exact_param_marginals = [lambda x : beta.pdf((x-1)/2,2,5)/2, # exact parameter marginals for a and b
-                         lambda x : norm.pdf(x,2.5,0.5)]
 
 exact_dg = lambda x, y : exact_param_marginals[0](x)*exact_param_marginals[1](y) # exact joint data-generating density
 exact_dg = exact_dg(params_full[0,:],params_full[1,:]) # evaluate at samples for computing TV
