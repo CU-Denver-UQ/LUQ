@@ -517,7 +517,8 @@ class RBFFit(object):
                                     output_data_shifted,
                                     p0=p0,
                                     bounds=param_bounds,
-                                    max_nfev=max_nfev)
+                                    max_nfev=max_nfev,
+                                    method='trf')
 
             # unpacking fitted parameters
             if self.add_poly:
